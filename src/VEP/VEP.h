@@ -71,6 +71,41 @@ namespace VEP
 
   void print(float *src, size_t size, const char *tag="float");
 
+  // =====================================================================
+  // VEP::Condition
+  //
+  // Thread signalling.
+  
+  class Condition
+  {
+  public:
+    Condition()
+    {
+      pthread_mutex_init(&m_mutex, 0);
+      pthread_cond_init(&m_cond, 0);
+    }
+    ~Condition()
+    {
+      pthread_mutex_destroy(&m_mutex);
+      pthread_cond_destroy(&m_cond);
+    }
+    
+    void wait()
+    {
+      pthread_mutex_lock(&m_mutex);
+      pthread_cond_wait(&m_cond, &m_mutex);
+      pthread_mutex_unlock(&m_mutex);
+    }
+    void signal()
+    {
+      pthread_cond_signal(&m_cond);
+    }
+    
+  private:
+    pthread_mutex_t m_mutex;
+    pthread_cond_t  m_cond;
+  };
+  
   // ===================================================================
   // Timer
   //

@@ -100,102 +100,69 @@ namespace VEP
     AudioBuffer*  m_data;
     float*        m_fftbuf;
   };
-};
-
-// =====================================================================
-// VEPConvolver
-//
-// Convolution process for specific partition size.
-
-class VEPConvolver
-{
-public:
-  VEPConvolver(size_t numChannels,
-                size_t binSize,             // smallest partition size N0
-                size_t numBins,             // number of bins in this partition size
-                size_t numPartitions,       // number of partitions in this convolver
-                size_t irOffset,           // offset in frames from beginning of IR
-                const VEP::FFT* fft
-                );
-  void release(InterfaceTable *ft, World *world);
-
-  size_t numChannels() const { return m_numChannels; }
-  size_t binSize() const { return m_binSize; }
-  size_t numBins() const { return m_numBins; }
-  size_t numPartitions() const { return m_numPartitions; }
-  size_t lastPartition() const { return m_numPartitions - 1; }
-  size_t partitionSize() const { return m_partitionSize; }
-  size_t irOffset() const { return m_irOffset; }
-
-  // write time-domain input data
-  void pushInput(const float** src, size_t numChannels, size_t numFrames);
-
-  // read time-domain output data
-  void pullOutput(float** dst, size_t numChannels, size_t numFrames);
-
-  // do one partial convolution
-  void compute(const AudioBuffer& ir, size_t binIndex);
   
-protected:
-  void computeOneStage(const AudioBuffer& ir, size_t stage);
-  void computeInput();
-  void computeMAC(const AudioBuffer& ir, size_t partition);
-  void computeOutput();
+  // =====================================================================
+  // Convolver
+  //
+  // Convolution process for specific partition size.
 
-private:
-  const VEP::FFT*         m_fft;
-  size_t                  m_numChannels;
-  size_t                  m_binSize;
-  size_t                  m_numBins;
-  size_t                  m_numPartitions;
-  size_t                  m_partitionSize;
-  size_t                  m_irOffset;
-  AudioRingBuffer         m_inputBuffer;
-  AudioRingBuffer         m_inputSpecBuffer;
-  AudioRingBuffer         m_outputBuffer;
-  AudioBuffer             m_fftMACBuffer;
-  AudioBuffer             m_overlapBuffer;
-  AudioBuffer             m_fftBuffer;
-  size_t                  m_inputSpecPos;
-  size_t                  m_stage;
-};
-
-// =====================================================================
-// VEPConvolutionProcess
-//
-// Convolution process.
-
-namespace VEP
-{
-  class Condition
+  class Convolver
   {
   public:
-    Condition()
-    {
-      pthread_mutex_init(&m_mutex, 0);
-      pthread_cond_init(&m_cond, 0);
-    }
-    ~Condition()
-    {
-      pthread_mutex_destroy(&m_mutex);
-      pthread_cond_destroy(&m_cond);
-    }
-    
-    void wait()
-    {
-      pthread_mutex_lock(&m_mutex);
-      pthread_cond_wait(&m_cond, &m_mutex);
-      pthread_mutex_unlock(&m_mutex);
-    }
-    void signal()
-    {
-      pthread_cond_signal(&m_cond);
-    }
-    
+    Convolver(size_t numChannels,
+                  size_t binSize,             // smallest partition size N0
+                  size_t numBins,             // number of bins in this partition size
+                  size_t numPartitions,       // number of partitions in this convolver
+                  size_t irOffset,           // offset in frames from beginning of IR
+                  const VEP::FFT* fft
+                  );
+    void release(InterfaceTable *ft, World *world);
+
+    size_t numChannels() const { return m_numChannels; }
+    size_t binSize() const { return m_binSize; }
+    size_t numBins() const { return m_numBins; }
+    size_t numPartitions() const { return m_numPartitions; }
+    size_t lastPartition() const { return m_numPartitions - 1; }
+    size_t partitionSize() const { return m_partitionSize; }
+    size_t irOffset() const { return m_irOffset; }
+
+    // write time-domain input data
+    void pushInput(const float** src, size_t numChannels, size_t numFrames);
+
+    // read time-domain output data
+    void pullOutput(float** dst, size_t numChannels, size_t numFrames);
+
+    // do one partial convolution
+    void compute(const AudioBuffer& ir, size_t binIndex);
+  
+  protected:
+    void computeOneStage(const AudioBuffer& ir, size_t stage);
+    void computeInput();
+    void computeMAC(const AudioBuffer& ir, size_t partition);
+    void computeOutput();
+
   private:
-    pthread_mutex_t m_mutex;
-    pthread_cond_t  m_cond;
+    const VEP::FFT*         m_fft;
+    size_t                  m_numChannels;
+    size_t                  m_binSize;
+    size_t                  m_numBins;
+    size_t                  m_numPartitions;
+    size_t                  m_partitionSize;
+    size_t                  m_irOffset;
+    AudioRingBuffer         m_inputBuffer;
+    AudioRingBuffer         m_inputSpecBuffer;
+    AudioRingBuffer         m_outputBuffer;
+    AudioBuffer             m_fftMACBuffer;
+    AudioBuffer             m_overlapBuffer;
+    AudioBuffer             m_fftBuffer;
+    size_t                  m_inputSpecPos;
+    size_t                  m_stage;
   };
+
+  // =====================================================================
+  // VEP::Convolution
+  //
+  // Convolution process.
   
   class Convolution
   {
@@ -229,7 +196,7 @@ namespace VEP
       float**                 m_dstChannelData;
   	};
 	
-  	typedef std::vector<VEPConvolver*> ConvolverArray;
+  	typedef std::vector<Convolver*> ConvolverArray;
 	
   public:
   	Convolution(Response* response, size_t numRTProcs=1);

@@ -141,9 +141,9 @@ void VEP::Response::transformBuffer(const float* srcBuffer, size_t srcNumChannel
 }
 
 // =====================================================================
-// VEPConvolver
+// Convolver
 
-VEPConvolver::VEPConvolver(
+Convolver::Convolver(
   size_t numChannels,
   size_t inBinSize, size_t inNumBins,
   size_t inNumPartitions,
@@ -166,7 +166,7 @@ VEPConvolver::VEPConvolver(
   m_overlapBuffer(m_numChannels, partitionSize()),
   m_fftBuffer(1, m_fft->paddedSize())
 {
-//   printf("VEPConvolver: numBins %d partitionSize %d numPartitions %d partitionOffset %d irOffset %d\n",
+//   printf("Convolver: numBins %d partitionSize %d numPartitions %d partitionOffset %d irOffset %d\n",
 //       numBins(), partitionSize(), numPartitions(), m_partitionOffset, irOffset());
 
   if (irOffset() > 0) {    
@@ -182,7 +182,7 @@ VEPConvolver::VEPConvolver(
   }
 }
 
-void VEPConvolver::pushInput(const float** src, size_t numChannels, size_t numFrames)
+void Convolver::pushInput(const float** src, size_t numChannels, size_t numFrames)
 {
   // printf("pushInput %d wpos=%d wspace=%d size=%d iroff=%d\n", numFrames, m_inputBuffer.writePos(), m_inputBuffer.writeSpace(), m_inputBuffer.size(), irOffset());
 
@@ -213,7 +213,7 @@ void VEPConvolver::pushInput(const float** src, size_t numChannels, size_t numFr
   // printf("pushInput rpos=%d rspace=%d %d\n", m_inputBuffer.readPos(), m_inputBuffer.readSpace(), m_inputBuffer.size());
 }
 
-void VEPConvolver::pullOutput(float** channelData, size_t numChannels, size_t size)
+void Convolver::pullOutput(float** channelData, size_t numChannels, size_t size)
 {
 //   printf("pullOutput %d %d %d %d\n", binSize(), m_outputBuffer[0].readPos(), m_outputBuffer[0].readSpace(), m_outputBuffer[0].size());
 
@@ -248,7 +248,7 @@ void VEPConvolver::pullOutput(float** channelData, size_t numChannels, size_t si
   m_outputBuffer.readAdvance(binSize());
 }
 
-void VEPConvolver::compute(const AudioBuffer& ir, size_t binIndex)
+void Convolver::compute(const AudioBuffer& ir, size_t binIndex)
 {
   // schedule process if
   //   numStages := 2
@@ -261,7 +261,7 @@ void VEPConvolver::compute(const AudioBuffer& ir, size_t binIndex)
   }
 }
 
-void VEPConvolver::computeOneStage(const AudioBuffer& ir, size_t stage)
+void Convolver::computeOneStage(const AudioBuffer& ir, size_t stage)
 {
   if (numBins() == 1) {
     // do the whole football
@@ -287,7 +287,7 @@ void VEPConvolver::computeOneStage(const AudioBuffer& ir, size_t stage)
   }
 }
 
-void VEPConvolver::computeInput()
+void Convolver::computeInput()
 {
   // get input and advance read pointer
   // NOTE: input is zero-padded automatically in pushInput
@@ -317,7 +317,7 @@ void VEPConvolver::computeInput()
   m_inputSpecBuffer.writeAdvance(fftSize);
 }
 
-void VEPConvolver::computeMAC(const AudioBuffer& ir, size_t partition)
+void Convolver::computeMAC(const AudioBuffer& ir, size_t partition)
 {
   // compute complex multiplication per channel and accumulate into m_fftMACBuffer
   const int fftSize       = (int)(m_fft->paddedSize());
@@ -336,7 +336,7 @@ void VEPConvolver::computeMAC(const AudioBuffer& ir, size_t partition)
   }
 }
 
-void VEPConvolver::computeOutput()
+void Convolver::computeOutput()
 {
   const size_t fftSize = m_fft->paddedSize();
   float* fftbuf = m_fftBuffer[0];
@@ -382,7 +382,7 @@ VEP::Convolution::Convolution(Response* response, size_t numRTProcs)
   for (size_t i=0; i < response->numModules(); ++i)
   {
    const Response::Module& m = response->module(i);
-   VEPConvolver* conv = new VEPConvolver(
+   Convolver* conv = new Convolver(
                              response->numChannels(),
                              binSize,
                              m.size/binSize,
@@ -433,7 +433,7 @@ void VEP::Convolution::process(float** dst, const float** src, size_t numChannel
 		
   for (size_t i=0; i < std::min(m_numRTProcs, m_convs.size()); ++i)
 	{
-    VEPConvolver* conv = m_convs[i];
+    Convolver* conv = m_convs[i];
     conv->pushInput(src, numChannels, numFrames);
     conv->compute(ir, binIndex);
     conv->pullOutput(dst, numChannels, numFrames);
@@ -465,7 +465,7 @@ void VEP::Convolution::process2(float** dst, const float** src, size_t numChanne
 		
   for (size_t i=m_numRTProcs; i < m_convs.size(); ++i)
 	{
-    VEPConvolver* conv = m_convs[i];
+    Convolver* conv = m_convs[i];
     conv->pushInput(src, numChannels, numFrames);
     conv->compute(ir, binIndex);
     conv->pullOutput(dst, numChannels, numFrames);
