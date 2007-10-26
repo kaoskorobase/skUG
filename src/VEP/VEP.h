@@ -142,8 +142,8 @@ namespace VEP
   public:
     Benchmark(size_t size)
       : m_size(size),
-	m_time(0.),
-	m_count(0)
+        m_time(0.),
+        m_count(0)
     {
     }
 
@@ -220,7 +220,7 @@ namespace VEP
     void printSummary(FILE *stream, const char *tag)
     {
       if (atBoundary()) {
-	fprintf(stream, "BENCH %s %.6f\n", tag, avg());
+        fprintf(stream, "BENCH %s %.6f\n", tag, avg());
       }
     }
 
