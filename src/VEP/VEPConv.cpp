@@ -46,7 +46,7 @@ VEP::Response::Response(size_t numChannels, size_t numFrames, size_t minSize, si
 {
   initModules(numFrames, minSize, maxSize);
   m_data = new AudioBuffer(m_numChannels, paddedSize());
-  m_fftbuf = memAlloc<float>(modules().back().fft->paddedSize());
+  m_fftbuf = memAlloc<float>(modules().back().fft()->paddedSize());
 }
 
 VEP::Response::~Response()
@@ -59,7 +59,7 @@ void VEP::Response::printOn(FILE *stream)
 {
   fprintf(stream, "VEPResponse: modules %d size %d\n", numModules(), m_size);
   for (size_t i = 0; i < numModules(); ++i) {
-    fprintf(stream, "%3d %5d|%5d  %d\n", 1<<i, m_modules[i].offset, m_modules[i].size, m_modules[i].count);
+    fprintf(stream, "%3d %5d|%5d  %d\n", 1<<i, m_modules[i].offset(), m_modules[i].size(), m_modules[i].count());
   }
 }
 
@@ -78,15 +78,14 @@ void VEP::Response::initModules(size_t numFrames, size_t minSize, size_t maxSize
 
 size_t VEP::Response::addModule(size_t offset, size_t size, size_t maxCount, size_t rest)
 {
-  Module m;
-  m.offset = offset;
-  m.size = size;
-  m.count = std::min(maxCount, rest / size + (rest % size ? 1 : 0));
-  m.fft = FFT::get(LOG2CEIL(m.size), true);
-  m_modules.push_back(m);
-  const size_t l = size * m.count;
+  m_modules.push_back(
+    Module(
+      offset, size,
+      std::min(maxCount, rest / size + (rest % size ? 1 : 0)),
+      FFT::get(LOG2CEIL(size), true)));
+  const size_t l = size * m_modules.back().count();
   m_size += l;
-  m_numPartitions += m.count;
+  m_numPartitions += m_modules.back().count();
   return rest - std::min(rest, l);
 }
 
@@ -108,15 +107,15 @@ void VEP::Response::transformBuffer(const float* srcBuffer, size_t srcNumChannel
   		for (size_t mi = 0; mi < numModules(); ++mi)
   		{
   			const Module& m = m_modules[mi];
-  			const size_t fftSize = m.fft->paddedSize();
+  			const size_t fftSize = m.fft()->paddedSize();
 
   			// normalize by 1/N
-  			double norm = m.fft->norm();
+  			double norm = m.fft()->norm();
 
-  			for (size_t pi=0; pi < m.count; ++pi)
+  			for (size_t pi=0; pi < m.count(); ++pi)
   			{
   				// deinterleave channel c into fftbuf and pad
-          size_t n = std::min(m.size, rest);
+          size_t n = std::min(m.size(), rest);
   				for (size_t i = 0; i < n; ++i)
   				{
   					fftbuf[i] = *src * norm;
@@ -125,7 +124,7 @@ void VEP::Response::transformBuffer(const float* srcBuffer, size_t srcNumChannel
   				memZero(fftbuf+n, fftSize-n);
 
   				// transform partition
-  				m.fft->execute_forward_hc(fftbuf);
+  				m.fft()->execute_forward_hc(fftbuf);
   				// convert from HC
   				FFT::shufflehc(dst, fftbuf, fftSize);
 
@@ -147,27 +146,21 @@ void VEP::Response::transformBuffer(const float* srcBuffer, size_t srcNumChannel
 
 Convolver::Convolver(
   size_t numChannels,
-  size_t inBinSize, size_t inNumBins,
-  size_t inNumPartitions,
-  size_t inIrOffset,
-  const VEP::FFT* fft
+  size_t binSize,
+  const Response::Module& module
   )
 : m_numChannels(numChannels),
-  m_binSize(inBinSize),
-  m_numBins(inNumBins),
-  m_numPartitions(inNumPartitions),
-  m_partitionSize(m_binSize * m_numBins),
-  m_irOffset(inIrOffset),
+  m_binSize(binSize),
+  m_module(module),
   m_stage(0),
   m_inputSpecPos(0),
-  m_fft(fft),
   m_inputBuffer(m_numChannels, partitionSize() * 4),  // [ work ] [ pad ] [ fill ] [ pad ]
-  m_inputSpecBuffer(m_numChannels, numPartitions() * m_fft->paddedSize()),
+  m_inputSpecBuffer(m_numChannels, numPartitions() * fft()->paddedSize()),
   m_outputBuffer(m_numChannels, irOffset() + partitionSize()),
-  m_irBuffer(m_numChannels, numPartitions() * m_fft->paddedSize()),
-  m_fftMACBuffer(m_numChannels, m_fft->paddedSize()),
+  m_irBuffer(m_numChannels, numPartitions() * fft()->paddedSize()),
+  m_fftMACBuffer(m_numChannels, fft()->paddedSize()),
   m_overlapBuffer(m_numChannels, partitionSize()),
-  m_fftBuffer(1, m_fft->paddedSize())
+  m_fftBuffer(1, fft()->paddedSize())
 {
 //   printf("Convolver: numBins %d partitionSize %d numPartitions %d partitionOffset %d irOffset %d\n",
 //       numBins(), partitionSize(), numPartitions(), m_partitionOffset, irOffset());
@@ -257,7 +250,7 @@ void Convolver::compute(const AudioBuffer& ir, size_t binIndex)
   //   numStages := 2
   //   period := numBins/numStages
   //   ((binIndex - period/2) % period) = 0
-  if (m_fft && ((((int)binIndex - (int)numBins()/4) % std::max<int>(1, (int)numBins()/2)) == 0)) {
+  if (((((int)binIndex - (int)numBins()/4) % std::max<int>(1, (int)numBins()/2)) == 0)) {
 //     printf("%d ", numBins());
     computeOneStage(ir, m_stage);
     m_stage = (m_stage + 1) & 1;
@@ -295,7 +288,7 @@ void Convolver::computeInput()
   // get input and advance read pointer
   // NOTE: input is zero-padded automatically in pushInput
 //   printf("computeInput %d %d\n", m_inputBuffer.readSpace(), m_inputBuffer.size());
-  const size_t fftSize = m_fft->paddedSize();
+  const size_t fftSize = fft()->paddedSize();
   
   // printf("computeInput rspace=%d fftSize=%d\n", m_inputBuffer.readSpace(), fftSize);
   
@@ -305,7 +298,7 @@ void Convolver::computeInput()
   {
     float* src = m_inputBuffer.readVector(c);
     // perform FFT (inplace)
-    m_fft->execute_forward_hc(src);
+    fft()->execute_forward_hc(src);
     // convert from HC
     assert( m_inputSpecBuffer.writeSpace() >= fftSize );
     float* dst = m_inputSpecBuffer.writeVector(c);
@@ -323,9 +316,9 @@ void Convolver::computeInput()
 void Convolver::computeMAC(const AudioBuffer& ir, size_t partition)
 {
   // compute complex multiplication per channel and accumulate into m_fftMACBuffer
-  const int fftSize       = (int)(m_fft->paddedSize());
+  const int fftSize       = (int)(fft()->paddedSize());
   const int partOffset    = (int)(partition * fftSize);
-  const int partbufOffset = (int)(m_irOffset * 2 /* padded offset*/ + partOffset);
+  const int partbufOffset = (int)(irOffset() * 2 /* padded offset*/ + partOffset);
   const int specbufSize   = (int)(m_inputSpecBuffer.size());
   const int specbufOffset = (m_inputSpecPos - partOffset + specbufSize) % specbufSize;
 
@@ -345,7 +338,7 @@ void Convolver::computeMAC(const AudioBuffer& ir, size_t partition)
 
 void Convolver::computeOutput()
 {
-  const size_t fftSize = m_fft->paddedSize();
+  const size_t fftSize = fft()->paddedSize();
   float* fftbuf = m_fftBuffer[0];
 
   for (size_t c = 0; c < numChannels(); ++c)
@@ -354,7 +347,7 @@ void Convolver::computeOutput()
     FFT::unshufflehc(fftbuf, m_fftMACBuffer[c], fftSize);
 
     // perform inverse FFT of accumulated convolution results
-    m_fft->execute_backward_hc(fftbuf);
+    fft()->execute_backward_hc(fftbuf);
 
     // write to output buffer with previous overlap and save current overlap
     assert( m_outputBuffer.writeSpace() >= partitionSize() );
@@ -378,8 +371,8 @@ void VEP::Convolver::setKernel(const float* srcBuffer, size_t srcNumChannels, si
 {
   const size_t minNumChannels = std::min(numChannels(), srcNumChannels);
   
-  const size_t fftSize = m_fft->paddedSize();
-	const double norm = m_fft->norm(); // normalize by 1/N
+  const size_t fftSize = fft()->paddedSize();
+	const double norm = fft()->norm(); // normalize by 1/N
 
 	for (size_t c = 0; c < minNumChannels; ++c)
 	{
@@ -403,7 +396,7 @@ void VEP::Convolver::setKernel(const float* srcBuffer, size_t srcNumChannels, si
 			memZero(fftbuf+n, fftSize-n);
 
 			// transform partition
-			m_fft->execute_forward_hc(fftbuf);
+			fft()->execute_forward_hc(fftbuf);
 			// convert from HC
 			FFT::shufflehc(dst, fftbuf, fftSize);
 
@@ -432,15 +425,11 @@ VEP::Convolution::Convolution(Response* response, size_t numRTProcs)
   // initialize convolvers
   for (size_t i=0; i < response->numModules(); ++i)
   {
-   const Response::Module& m = response->module(i);
-   Convolver* conv = new Convolver(
-                             response->numChannels(),
-                             binSize,
-                             m.size/binSize,
-                             m.count,
-                             m.offset,
-                             m.fft);
-   m_convs.push_back(conv);
+   m_convs.push_back(
+     new Convolver(
+       response->numChannels(),
+       binSize,
+       response->module(i)));
   }
 	
 	m_binPeriod = m_convs.back()->numBins() - 1;
@@ -450,7 +439,7 @@ VEP::Convolution::Convolution(Response* response, size_t numRTProcs)
 	
 	if (response->numModules() > m_numRTProcs) {
 	  const Response::Module& module = response->module(m_numRTProcs);
-    size_t irOffset = module.offset;
+    size_t irOffset = module.offset();
     // m_processDelayBins = irOffset / binSize;
     // m_processDelayBins = 0;
     m_process = new Process(this, response->numChannels(), binSize, irOffset, irOffset*4);

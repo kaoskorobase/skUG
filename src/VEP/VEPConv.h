@@ -47,13 +47,28 @@ namespace VEP
   class Response
   {
   public:
-    struct Module
+    class Module
     {
-      size_t    offset;
-      size_t    size;
-      size_t    count;
-      FFT*      fft;
+    public:
+      Module(size_t offset, size_t size, size_t count, const FFT* fft)
+        : m_offset(offset),
+          m_size(size),
+          m_count(count),
+          m_fft(fft)
+      { }
+      
+      size_t offset() const { return m_offset; }
+      size_t size() const { return m_size; }
+      size_t count() const { return m_count; }
+      const FFT* fft() const { return m_fft; }
+      
+    private:
+      size_t      m_offset;
+      size_t      m_size;
+      size_t      m_count;
+      const FFT*  m_fft;
     };
+    
     typedef std::vector<Module> ModuleArray;
   
   public:
@@ -110,22 +125,22 @@ namespace VEP
   {
   public:
     Convolver(size_t numChannels,
-                  size_t binSize,             // smallest partition size N0
-                  size_t numBins,             // number of bins in this partition size
-                  size_t numPartitions,       // number of partitions in this convolver
-                  size_t irOffset,           // offset in frames from beginning of IR
-                  const VEP::FFT* fft
-                  );
+              // smallest partition size N0
+              size_t binSize,
+              const Response::Module& module);
     void release(InterfaceTable *ft, World *world);
 
     size_t numChannels() const { return m_numChannels; }
     size_t binSize() const { return m_binSize; }
-    size_t numBins() const { return m_numBins; }
-    size_t numPartitions() const { return m_numPartitions; }
-    size_t lastPartition() const { return m_numPartitions - 1; }
-    size_t partitionSize() const { return m_partitionSize; }
-    size_t irOffset() const { return m_irOffset; }
-
+    size_t numBins() const { return partitionSize()/binSize(); }
+    size_t numPartitions() const { return m_module.count(); }
+    size_t lastPartition() const { return numPartitions() - 1; }
+    size_t partitionSize() const { return m_module.size(); }
+    size_t irOffset() const { return m_module.offset(); }
+    
+    const FFT* fft() const { return m_module.fft(); }
+    size_t fftSize() const { return fft()->paddedSize(); }
+    
     // write time-domain input data
     void pushInput(const float** src, size_t numChannels, size_t numFrames);
 
@@ -145,13 +160,9 @@ namespace VEP
     void computeOutput();
 
   private:
-    const VEP::FFT*         m_fft;
     size_t                  m_numChannels;
     size_t                  m_binSize;
-    size_t                  m_numBins;
-    size_t                  m_numPartitions;
-    size_t                  m_partitionSize;
-    size_t                  m_irOffset;
+    Response::Module        m_module;
     AudioRingBuffer         m_inputBuffer;
     AudioRingBuffer         m_inputSpecBuffer;
     AudioRingBuffer         m_outputBuffer;
