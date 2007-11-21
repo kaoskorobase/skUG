@@ -134,7 +134,10 @@ namespace VEP
 
     // do one partial convolution
     void compute(const AudioBuffer& ir, size_t binIndex);
-  
+
+    // switch IRs
+    void setKernel(const float* data, size_t numChannels, size_t numFrames);
+    
   protected:
     void computeOneStage(const AudioBuffer& ir, size_t stage);
     void computeInput();
@@ -152,6 +155,7 @@ namespace VEP
     AudioRingBuffer         m_inputBuffer;
     AudioRingBuffer         m_inputSpecBuffer;
     AudioRingBuffer         m_outputBuffer;
+    AudioBuffer             m_irBuffer;
     AudioBuffer             m_fftMACBuffer;
     AudioBuffer             m_overlapBuffer;
     AudioBuffer             m_fftBuffer;
@@ -202,11 +206,10 @@ namespace VEP
   	Convolution(Response* response, size_t numRTProcs=1);
   	~Convolution();
 	
-    Response* response() { return m_response; }
-    
   	// PRE: dst != src
   	void process(float** dst, const float** src, size_t numChannels, size_t numFrames);
-	
+    void setKernel(const float* data, size_t numChannels, size_t numFrames);
+    
   protected:
   	friend class Process;
   	void process2(float** dst, const float** src, size_t numChannels, size_t numFrames);

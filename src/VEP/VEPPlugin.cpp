@@ -270,7 +270,7 @@ bool VEPConvolution::setKernel(int bufnum, int offset, int length, bool defer)
     //   return false;
     // }
     // TODO: implement offset and size
-    m_conv->response()->transformBuffer(buf->data, buf->channels, buf->frames);
+    m_conv->setKernel(buf->data, buf->channels, buf->frames);
   } else if (defer) {
     // defer
     Cmd* cmd = allocCmd(Cmd::kSetKernel);

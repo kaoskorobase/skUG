@@ -31,6 +31,8 @@
 
 using namespace VEP;
 
+#define USE_GLOBAL_IR 0
+
 // =====================================================================
 // VEP::Response
 
@@ -162,6 +164,7 @@ Convolver::Convolver(
   m_inputBuffer(m_numChannels, partitionSize() * 4),  // [ work ] [ pad ] [ fill ] [ pad ]
   m_inputSpecBuffer(m_numChannels, numPartitions() * m_fft->paddedSize()),
   m_outputBuffer(m_numChannels, irOffset() + partitionSize()),
+  m_irBuffer(m_numChannels, numPartitions() * m_fft->paddedSize()),
   m_fftMACBuffer(m_numChannels, m_fft->paddedSize()),
   m_overlapBuffer(m_numChannels, partitionSize()),
   m_fftBuffer(1, m_fft->paddedSize())
@@ -331,7 +334,11 @@ void Convolver::computeMAC(const AudioBuffer& ir, size_t partition)
   for (size_t c = 0; c < numChannels(); ++c)
   {
     const float* specbuf = m_inputSpecBuffer.data(c) + specbufOffset;
+#if USE_GLOBAL_IR
     const float* partbuf = ir[c] + partbufOffset;
+#else
+    const float* partbuf = m_irBuffer[c] + partOffset;
+#endif
     DSP::cmac_hc(m_fftMACBuffer[c], specbuf, partbuf, fftSize);
   }
 }
@@ -365,6 +372,50 @@ void Convolver::computeOutput()
 
   // advance output buffer write pointer
   m_outputBuffer.writeAdvance(partitionSize());
+}
+
+void VEP::Convolver::setKernel(const float* srcBuffer, size_t srcNumChannels, size_t srcNumFrames)
+{
+  const size_t minNumChannels = std::min(numChannels(), srcNumChannels);
+  
+  const size_t fftSize = m_fft->paddedSize();
+	const double norm = m_fft->norm(); // normalize by 1/N
+
+	for (size_t c = 0; c < minNumChannels; ++c)
+	{
+    float* dst = m_irBuffer[c];
+		const float* src = srcBuffer + (irOffset() * srcNumChannels) + c;
+		size_t rest = std::min(
+		  srcNumFrames - std::min(srcNumFrames, irOffset()),  // src frames - offset
+		  partitionSize() * numPartitions()                   // required frames
+		);
+    
+		for (size_t pi=0; pi < numPartitions(); ++pi)
+		{
+			// deinterleave channel c into fftbuf and pad
+      size_t n = std::min(partitionSize(), rest);
+      float* fftbuf = m_fftBuffer[0];
+			for (size_t i = 0; i < n; ++i)
+			{
+				fftbuf[i] = *src * norm;
+        src += srcNumChannels;
+			}
+			memZero(fftbuf+n, fftSize-n);
+
+			// transform partition
+			m_fft->execute_forward_hc(fftbuf);
+			// convert from HC
+			FFT::shufflehc(dst, fftbuf, fftSize);
+
+			dst += fftSize;
+			rest -= n;
+		}
+	}
+	
+  for (size_t c = minNumChannels; c < numChannels(); ++c)
+  {
+    memZero(m_irBuffer[c], fftSize * numPartitions());
+  }
 }
 
 // =====================================================================
@@ -476,6 +527,19 @@ void VEP::Convolution::process2(float** dst, const float** src, size_t numChanne
 #endif
 	
 	m_binIndex2 = (binIndex + 1) & m_binPeriod;
+}
+
+void VEP::Convolution::setKernel(const float* data, size_t numChannels, size_t numFrames)
+{
+#if USE_GLOBAL_IR
+  m_response->transformBuffer(data, numChannels, numFrames);
+#else
+  // NOTE: NOT thread-safe!
+  for (size_t i=0; i < m_convs.size(); ++i)
+  {
+    m_convs[i]->setKernel(data, numChannels, numFrames);
+  }
+#endif
 }
 
 // =====================================================================
