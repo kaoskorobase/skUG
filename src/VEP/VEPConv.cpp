@@ -31,8 +31,6 @@
 
 using namespace VEP;
 
-#define USE_GLOBAL_IR 0
-
 // =====================================================================
 // VEP::Response
 
@@ -45,14 +43,6 @@ VEP::Response::Response(size_t numChannels, size_t numFrames, size_t minSize, si
     m_numPartitions(0)
 {
   initModules(numFrames, minSize, maxSize);
-  m_data = new AudioBuffer(m_numChannels, paddedSize());
-  m_fftbuf = memAlloc<float>(modules().back().fft()->paddedSize());
-}
-
-VEP::Response::~Response()
-{
-  delete m_data;
-  memFree<float>(m_fftbuf);
 }
 
 void VEP::Response::printOn(FILE *stream)
@@ -87,58 +77,6 @@ size_t VEP::Response::addModule(size_t offset, size_t size, size_t maxCount, siz
   m_size += l;
   m_numPartitions += m_modules.back().count();
   return rest - std::min(rest, l);
-}
-
-void VEP::Response::transformBuffer(const float* srcBuffer, size_t srcNumChannels, size_t srcNumFrames)
-{
-  size_t minNumChannels = std::min(numChannels(), srcNumChannels);
-  size_t minNumFrames = std::min(numFrames(), srcNumFrames);
-  
-  if (numModules() > 0)
-  {
-    float* fftbuf = m_fftbuf;
-    
-  	for (size_t c = 0; c < minNumChannels; ++c)
-  	{
-  		float* dst = (*m_data)[c];
-  		const float* src = srcBuffer + c;
-  		size_t rest = minNumFrames;
-
-  		for (size_t mi = 0; mi < numModules(); ++mi)
-  		{
-  			const Module& m = m_modules[mi];
-  			const size_t fftSize = m.fft()->paddedSize();
-
-  			// normalize by 1/N
-  			double norm = m.fft()->norm();
-
-  			for (size_t pi=0; pi < m.count(); ++pi)
-  			{
-  				// deinterleave channel c into fftbuf and pad
-          size_t n = std::min(m.size(), rest);
-  				for (size_t i = 0; i < n; ++i)
-  				{
-  					fftbuf[i] = *src * norm;
-            src += srcNumChannels;
-  				}
-  				memZero(fftbuf+n, fftSize-n);
-
-  				// transform partition
-  				m.fft()->execute_forward_hc(fftbuf);
-  				// convert from HC
-  				FFT::shufflehc(dst, fftbuf, fftSize);
-
-  				dst += fftSize;
-          // src  += m.size;
-  				rest -= n;
-  			}
-  		}
-      for (size_t c = minNumChannels; c < numChannels(); ++c)
-      {
-        memZero((*m_data)[c], paddedSize());
-      }
-  	}
-  }
 }
 
 // =====================================================================
@@ -244,7 +182,7 @@ void Convolver::pullOutput(float** channelData, size_t numChannels, size_t size)
   m_outputBuffer.readAdvance(binSize());
 }
 
-void Convolver::compute(const AudioBuffer& ir, size_t binIndex)
+void Convolver::compute(size_t binIndex)
 {
   // schedule process if
   //   numStages := 2
@@ -252,18 +190,18 @@ void Convolver::compute(const AudioBuffer& ir, size_t binIndex)
   //   ((binIndex - period/2) % period) = 0
   if (((((int)binIndex - (int)numBins()/4) % std::max<int>(1, (int)numBins()/2)) == 0)) {
 //     printf("%d ", numBins());
-    computeOneStage(ir, m_stage);
+    computeOneStage(m_stage);
     m_stage = (m_stage + 1) & 1;
   }
 }
 
-void Convolver::computeOneStage(const AudioBuffer& ir, size_t stage)
+void Convolver::computeOneStage(size_t stage)
 {
   if (numBins() == 1) {
     // do the whole football
     computeInput();
     for (int i=0; i < numPartitions(); ++i) {
-      computeMAC(ir, i);
+      computeMAC(i);
     }
     computeOutput();
   } else {
@@ -271,12 +209,12 @@ void Convolver::computeOneStage(const AudioBuffer& ir, size_t stage)
       // input FFT and first half of MACs
       computeInput();
       for (int i=0; i < numPartitions()/2; ++i) {
-        computeMAC(ir, i);
+        computeMAC(i);
       }
     } else {
       // second half of MACs and output FFT
       for (int i=numPartitions()/2; i < numPartitions(); ++i) {
-        computeMAC(ir, i);
+        computeMAC(i);
       }
       computeOutput();
     }
@@ -313,12 +251,11 @@ void Convolver::computeInput()
   m_inputSpecBuffer.writeAdvance(fftSize);
 }
 
-void Convolver::computeMAC(const AudioBuffer& ir, size_t partition)
+void Convolver::computeMAC(size_t partition)
 {
   // compute complex multiplication per channel and accumulate into m_fftMACBuffer
   const int fftSize       = (int)(fft()->paddedSize());
   const int partOffset    = (int)(partition * fftSize);
-  const int partbufOffset = (int)(irOffset() * 2 /* padded offset*/ + partOffset);
   const int specbufSize   = (int)(m_inputSpecBuffer.size());
   const int specbufOffset = (m_inputSpecPos - partOffset + specbufSize) % specbufSize;
 
@@ -327,11 +264,7 @@ void Convolver::computeMAC(const AudioBuffer& ir, size_t partition)
   for (size_t c = 0; c < numChannels(); ++c)
   {
     const float* specbuf = m_inputSpecBuffer.data(c) + specbufOffset;
-#if USE_GLOBAL_IR
-    const float* partbuf = ir[c] + partbufOffset;
-#else
     const float* partbuf = m_irBuffer[c] + partOffset;
-#endif
     DSP::cmac_hc(m_fftMACBuffer[c], specbuf, partbuf, fftSize);
   }
 }
@@ -469,13 +402,11 @@ void VEP::Convolution::process(float** dst, const float** src, size_t numChannel
 	
 	const size_t binIndex = m_binIndex;
 
-	const AudioBuffer& ir = m_response->data();
-		
   for (size_t i=0; i < std::min(m_numRTProcs, m_convs.size()); ++i)
 	{
     Convolver* conv = m_convs[i];
     conv->pushInput(src, numChannels, numFrames);
-    conv->compute(ir, binIndex);
+    conv->compute(binIndex);
     conv->pullOutput(dst, numChannels, numFrames);
   }
 	
@@ -501,13 +432,11 @@ void VEP::Convolution::process2(float** dst, const float** src, size_t numChanne
 
 	const size_t binIndex = m_binIndex2;
 
-	const AudioBuffer& ir = m_response->data();
-		
   for (size_t i=m_numRTProcs; i < m_convs.size(); ++i)
 	{
     Convolver* conv = m_convs[i];
     conv->pushInput(src, numChannels, numFrames);
-    conv->compute(ir, binIndex);
+    conv->compute(binIndex);
     conv->pullOutput(dst, numChannels, numFrames);
   }
 		
@@ -520,15 +449,11 @@ void VEP::Convolution::process2(float** dst, const float** src, size_t numChanne
 
 void VEP::Convolution::setKernel(const float* data, size_t numChannels, size_t numFrames)
 {
-#if USE_GLOBAL_IR
-  m_response->transformBuffer(data, numChannels, numFrames);
-#else
   // NOTE: NOT thread-safe!
   for (size_t i=0; i < m_convs.size(); ++i)
   {
     m_convs[i]->setKernel(data, numChannels, numFrames);
   }
-#endif
 }
 
 // =====================================================================

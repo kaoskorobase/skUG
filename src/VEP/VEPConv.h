@@ -73,7 +73,6 @@ namespace VEP
   
   public:
     Response(size_t numChannels, size_t numFrames, size_t minPartSize, size_t maxPartSize);
-    ~Response();
   
     // number of channels
     size_t numChannels() const { return m_numChannels; }
@@ -95,9 +94,6 @@ namespace VEP
     // total number of partitions
     size_t numPartitions() const { return m_numPartitions; }
 
-    const AudioBuffer& data() const { return *m_data; }
-    
-    void transformBuffer(const float* src, size_t srcNumChannels, size_t srcNumFrames);
     void printOn(FILE *stream);
 
   protected:
@@ -112,8 +108,6 @@ namespace VEP
     size_t        m_size;
     size_t        m_numPartitions;
     ModuleArray   m_modules;
-    AudioBuffer*  m_data;
-    float*        m_fftbuf;
   };
   
   // =====================================================================
@@ -148,15 +142,15 @@ namespace VEP
     void pullOutput(float** dst, size_t numChannels, size_t numFrames);
 
     // do one partial convolution
-    void compute(const AudioBuffer& ir, size_t binIndex);
+    void compute(size_t binIndex);
 
     // switch IRs
     void setKernel(const float* data, size_t numChannels, size_t numFrames);
     
   protected:
-    void computeOneStage(const AudioBuffer& ir, size_t stage);
+    void computeOneStage(size_t stage);
     void computeInput();
-    void computeMAC(const AudioBuffer& ir, size_t partition);
+    void computeMAC(size_t partition);
     void computeOutput();
 
   private:
