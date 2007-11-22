@@ -182,7 +182,10 @@ void VEPConvolution_Ctor(VEPConvolution *unit)
   //ClearUnitOutputs(unit, 1);
 
   VEPConvolution::Cmd* cmd = unit->allocCmd(VEPConvolution::Cmd::kInit);
-  cmd->data.Init.numRTProcs = (int)VEPCONV_IN0(VEPConvolution::idx_numRTProcs);
+  cmd->data.Init.numRTProcs =
+    unit->mWorld->mRealTime
+      ? std::max(0, (int)VEPCONV_IN0(VEPConvolution::idx_numRTProcs))
+      : /* no threading in NRT */ 0;
   unit->doCmd(cmd);
   
   //    Print("<<< VEPConvolution_Ctor\n");
@@ -295,8 +298,10 @@ bool VEPConvolution::cmdStage2(World* inWorld, Cmd* cmd) // NRT
     case Cmd::kInit: {
       VEPConvolution* unit = cmd->unit;
       VEP::Response* response = new VEP::Response(unit->m_numChannels, unit->m_kernelMaxSize, unit->m_minPartSize, unit->m_maxPartSize);
-      response->printOn(stdout);
-      cmd->data.Init.conv = new VEP::Convolution(response, unit->mWorld->mRealTime ? std::max(0, cmd->data.Init.numRTProcs) : 0);
+      cmd->data.Init.conv = new VEP::Convolution(
+        VEP::Response(unit->m_numChannels, unit->m_kernelMaxSize, unit->m_minPartSize, unit->m_maxPartSize),
+        cmd->data.Init.numRTProcs);
+      cmd->data.Init.conv->response().printOn(stdout);
     }
     return true;
     case Cmd::kSetKernel:

@@ -106,6 +106,44 @@ namespace VEP
     pthread_cond_t  m_cond;
   };
   
+  class Semaphore
+  {
+  public:
+    Semaphore()
+    {
+      pthread_mutex_init(&m_mutex, 0);
+      pthread_cond_init(&m_cond, 0);
+      m_count = 0;
+    }
+    ~Semaphore()
+    {
+      pthread_mutex_destroy(&m_mutex);
+      pthread_cond_destroy(&m_cond);
+    }
+    
+    void wait()
+    {
+      pthread_mutex_lock(&m_mutex);
+      if (m_count > 0) {
+        pthread_cond_wait(&m_cond, &m_mutex);
+        m_count--;
+      }
+      pthread_mutex_unlock(&m_mutex);
+    }
+    void signal()
+    {
+      pthread_mutex_lock(&m_mutex);
+      m_count++;
+      pthread_cond_signal(&m_cond);
+      pthread_mutex_unlock(&m_mutex);
+    }
+    
+  private:
+    pthread_mutex_t m_mutex;
+    pthread_cond_t  m_cond;
+    size_t          m_count;
+  };
+  
   // ===================================================================
   // Timer
   //

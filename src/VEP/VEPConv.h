@@ -89,12 +89,12 @@ namespace VEP
     size_t numModules() const { return m_modules.size(); }
     // modules
     const ModuleArray& modules() const { return m_modules; }
-    const Module& module(size_t i) const { return m_modules[i]; }
+    const Module& operator[](size_t i) const { return m_modules[i]; }
   
     // total number of partitions
     size_t numPartitions() const { return m_numPartitions; }
 
-    void printOn(FILE *stream);
+    void printOn(FILE *stream) const;
 
   protected:
     void initModules(size_t numFrames, size_t minSize, size_t maxSize);
@@ -121,7 +121,8 @@ namespace VEP
     Convolver(size_t numChannels,
               // smallest partition size N0
               size_t binSize,
-              const Response::Module& module);
+              const Response::Module& module,
+              size_t externalDelay=0);
     void release(InterfaceTable *ft, World *world);
 
     size_t numChannels() const { return m_numChannels; }
@@ -135,6 +136,16 @@ namespace VEP
     const FFT* fft() const { return m_module.fft(); }
     size_t fftSize() const { return fft()->paddedSize(); }
     
+    // switch IRs (eventually perform crossfade)
+    void setKernel(const float* data, size_t numChannels, size_t numFrames);
+
+    // simple process interface
+    
+    // process
+    void process(float** dst, const float** src, size_t numChannels, size_t numFrames, size_t binPeriod);
+    
+    // detailed process interface
+    
     // write time-domain input data
     void pushInput(const float** src, size_t numChannels, size_t numFrames);
 
@@ -142,12 +153,10 @@ namespace VEP
     void pullOutput(float** dst, size_t numChannels, size_t numFrames);
 
     // do one partial convolution
-    void compute(size_t binIndex);
-
-    // switch IRs
-    void setKernel(const float* data, size_t numChannels, size_t numFrames);
+    void process(size_t binPeriod);
     
   protected:
+    void compute(size_t binIndex);
     void computeOneStage(size_t stage);
     void computeInput();
     void computeMAC(size_t partition);
@@ -157,15 +166,16 @@ namespace VEP
     size_t                  m_numChannels;
     size_t                  m_binSize;
     Response::Module        m_module;
-    AudioRingBuffer         m_inputBuffer;
+    RingBuffer<float,true>  m_inputBuffer;
     AudioRingBuffer         m_inputSpecBuffer;
-    AudioRingBuffer         m_outputBuffer;
+    RingBuffer<float,true>  m_outputBuffer;
     AudioBuffer             m_irBuffer;
     AudioBuffer             m_fftMACBuffer;
     AudioBuffer             m_overlapBuffer;
     AudioBuffer             m_fftBuffer;
     size_t                  m_inputSpecPos;
     size_t                  m_stage;
+    size_t                  m_binIndex;
   };
 
   // =====================================================================
@@ -184,7 +194,8 @@ namespace VEP
       
   		bool write(const float** buffer, size_t numChannels, size_t numSamples);
   		bool read(float** buffer, size_t numChannels, size_t numSamples);
-
+      void signal() { m_cond.signal(); }
+      
 		private:
       static void* threadFunc(void*);
   		void run();
@@ -198,6 +209,7 @@ namespace VEP
       pthread_t               m_thread;
       Condition               m_cond;
       bool                    m_shouldBeRunning;
+      size_t                  m_initialDelay;
       // buffers
   		RingBuffer<float,true>  m_inFifo;
   		RingBuffer<float,true>  m_outFifo;
@@ -208,9 +220,11 @@ namespace VEP
   	typedef std::vector<Convolver*> ConvolverArray;
 	
   public:
-  	Convolution(Response* response, size_t numRTProcs=1);
+  	Convolution(const Response& response, size_t numRTProcs=1);
   	~Convolution();
 	
+    const Response& response() const { return m_response; }
+    
   	// PRE: dst != src
   	void process(float** dst, const float** src, size_t numChannels, size_t numFrames);
     void setKernel(const float* data, size_t numChannels, size_t numFrames);
@@ -218,8 +232,10 @@ namespace VEP
   protected:
   	friend class Process;
   	void process2(float** dst, const float** src, size_t numChannels, size_t numFrames);
+    void processAsync();
 
   private:
+    Response            m_response;
   	ConvolverArray			m_convs;
   	size_t							m_numRTProcs;
   	size_t							m_binPeriod;
@@ -227,8 +243,6 @@ namespace VEP
   	size_t							m_binIndex;
   	size_t							m_binIndex2;
   	Process*						m_process;
-    size_t              m_processDelayBins;
-    Response*           m_response;
   };
 };
 

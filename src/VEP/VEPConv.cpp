@@ -45,7 +45,7 @@ VEP::Response::Response(size_t numChannels, size_t numFrames, size_t minSize, si
   initModules(numFrames, minSize, maxSize);
 }
 
-void VEP::Response::printOn(FILE *stream)
+void VEP::Response::printOn(FILE *stream) const
 {
   fprintf(stream, "VEPResponse: modules %d size %d\n", numModules(), m_size);
   for (size_t i = 0; i < numModules(); ++i) {
@@ -85,12 +85,14 @@ size_t VEP::Response::addModule(size_t offset, size_t size, size_t maxCount, siz
 Convolver::Convolver(
   size_t numChannels,
   size_t binSize,
-  const Response::Module& module
+  const Response::Module& module,
+  size_t externalDelay
   )
 : m_numChannels(numChannels),
   m_binSize(binSize),
   m_module(module),
   m_stage(0),
+  m_binIndex(0),
   m_inputSpecPos(0),
   m_inputBuffer(m_numChannels, partitionSize() * 4),  // [ work ] [ pad ] [ fill ] [ pad ]
   m_inputSpecBuffer(m_numChannels, numPartitions() * fft()->paddedSize()),
@@ -98,22 +100,23 @@ Convolver::Convolver(
   m_irBuffer(m_numChannels, numPartitions() * fft()->paddedSize()),
   m_fftMACBuffer(m_numChannels, fft()->paddedSize()),
   m_overlapBuffer(m_numChannels, partitionSize()),
-  m_fftBuffer(1, fft()->paddedSize())
+  m_fftBuffer(m_numChannels, fft()->paddedSize())
 {
 //   printf("Convolver: numBins %d partitionSize %d numPartitions %d partitionOffset %d irOffset %d\n",
 //       numBins(), partitionSize(), numPartitions(), m_partitionOffset, irOffset());
 
-  if (irOffset() > 0) {    
-    m_inputBuffer.writeAdvance(partitionSize()*2);
-  }
-
   assert( (irOffset() % partitionSize()) == 0 );
-  if (irOffset() > 0) {
-    // pre-delay convolver output for later partitions
-    // NOTE: input already delayed by partitionSize
-    size_t delay = irOffset() - partitionSize();
-    m_outputBuffer.writeAdvance(delay);
-  }
+
+  // if (irOffset() > 0) {
+  //   // delay input buffer by partition size (plus padding for the fft)
+  //   m_inputBuffer.writeAdvance(partitionSize()*2);
+  //   // pre-delay convolver output for later partitions
+  //   // NOTE: input already delayed by partitionSize
+  //   size_t delay = irOffset() - partitionSize();
+  //   m_outputBuffer.writeAdvance(delay);
+  // }
+  
+  m_outputBuffer.writeAdvance(irOffset() - (partitionSize() - externalDelay) * (irOffset() > 0));
 }
 
 void Convolver::pushInput(const float** src, size_t numChannels, size_t numFrames)
@@ -230,23 +233,35 @@ void Convolver::computeInput()
   
   // printf("computeInput rspace=%d fftSize=%d\n", m_inputBuffer.readSpace(), fftSize);
   
-  assert( m_inputBuffer.readSpace() >= fftSize );
-  
-  for (size_t c=0; c < m_inputBuffer.numChannels(); ++c)
-  {
-    float* src = m_inputBuffer.readVector(c);
-    // perform FFT (inplace)
-    fft()->execute_forward_hc(src);
-    // convert from HC
-    assert( m_inputSpecBuffer.writeSpace() >= fftSize );
-    float* dst = m_inputSpecBuffer.writeVector(c);
-    FFT::shufflehc(dst, src, fftSize);
-    // save input spec pos for MAC and advance write pointer
-    // clear MAC buffers
-    memZero(m_fftMACBuffer[c], fftSize);
-  }
+  // assert( m_inputBuffer.readSpace() >= fftSize );
+  assert( m_inputSpecBuffer.writeSpace() >= fftSize );
 
-  m_inputBuffer.readAdvance(fftSize);
+  if (m_inputBuffer.readSpace() >= fftSize) {
+    for (size_t c=0; c < m_inputBuffer.numChannels(); ++c)
+    {
+      float* src = m_inputBuffer.readVector(c);
+      // perform FFT (inplace)
+      fft()->execute_forward_hc(src);
+      // convert from HC
+      float* dst = m_inputSpecBuffer.writeVector(c);
+      FFT::shufflehc(dst, src, fftSize);
+      // clear MAC buffer
+      memZero(m_fftMACBuffer[c], fftSize);
+    }
+
+    m_inputBuffer.readAdvance(fftSize);
+  } else {
+    printf("filling ...\n");
+    for (size_t c=0; c < m_inputBuffer.numChannels(); ++c)
+    {
+      // clear spec buffer
+      memZero(m_inputSpecBuffer.writeVector(c), fftSize);
+      // clear MAC buffer
+      memZero(m_fftMACBuffer[c], fftSize);
+    }
+  }  
+
+  // save input spec pos for MAC and advance write pointer
   m_inputSpecPos = m_inputSpecBuffer.writePos();
   m_inputSpecBuffer.writeAdvance(fftSize);
 }
@@ -269,35 +284,100 @@ void Convolver::computeMAC(size_t partition)
   }
 }
 
+// void Convolver::computeOutput()
+// {
+//   const size_t fftSize = fft()->paddedSize();
+//   float* fftbuf = m_fftBuffer[0];
+// 
+//   for (size_t c = 0; c < numChannels(); ++c)
+//   {
+//     // convert to HC
+//     FFT::unshufflehc(fftbuf, m_fftMACBuffer[c], fftSize);
+// 
+//     // perform inverse FFT of accumulated convolution results
+//     fft()->execute_backward_hc(fftbuf);
+// 
+//     // write to output buffer with previous overlap and save current overlap
+//     assert( m_outputBuffer.writeSpace() >= partitionSize() );
+//     float* out = m_outputBuffer.writeVector(c);
+//     float* overlap = m_overlapBuffer[c];
+// 
+//     // add overlap
+//     // TODO: use vector ops
+//     for (size_t i = 0; i < partitionSize(); ++i) {
+//       out[i] = fftbuf[i] + overlap[i];
+//     }
+//     // save overlap
+//     memCopy(overlap, fftbuf+partitionSize(), partitionSize());        
+//   }
+// 
+//   // advance output buffer write pointer
+//   m_outputBuffer.writeAdvance(partitionSize());
+// }
+
 void Convolver::computeOutput()
 {
   const size_t fftSize = fft()->paddedSize();
-  float* fftbuf = m_fftBuffer[0];
+  // float* fftbuf = m_fftBuffer[0];
 
   for (size_t c = 0; c < numChannels(); ++c)
   {
     // convert to HC
-    FFT::unshufflehc(fftbuf, m_fftMACBuffer[c], fftSize);
-
+    FFT::unshufflehc(m_fftBuffer[c], m_fftMACBuffer[c], fftSize);
     // perform inverse FFT of accumulated convolution results
-    fft()->execute_backward_hc(fftbuf);
-
-    // write to output buffer with previous overlap and save current overlap
-    assert( m_outputBuffer.writeSpace() >= partitionSize() );
-    float* out = m_outputBuffer.writeVector(c);
-    float* overlap = m_overlapBuffer[c];
-
-    // add overlap
-    // TODO: use vector ops
-    for (size_t i = 0; i < partitionSize(); ++i) {
-      out[i] = fftbuf[i] + overlap[i];
-    }
-    // save overlap
-    memCopy(overlap, fftbuf+partitionSize(), partitionSize());        
+    fft()->execute_backward_hc(m_fftBuffer[c]);
   }
+  
+  size_t nwrite = partitionSize();
+  size_t n = m_outputBuffer.writeSpace();
+  
+  if (n < nwrite) {
+    // chunk
+    for (size_t c = 0; c < numChannels(); ++c)
+    {
+      float* fftbuf = m_fftBuffer[c];
+      float* out = m_outputBuffer.writeVector(c);
+      float* overlap = m_overlapBuffer[c];
+      for (size_t i = 0; i < n; ++i) {
+        out[i] = fftbuf[i] + overlap[i];
+      }
+    }
+    m_outputBuffer.writeAdvance(n);
+    for (size_t c = 0; c < numChannels(); ++c)
+    {
+      float* fftbuf = m_fftBuffer[c];
+      float* out = m_outputBuffer.writeVector(c);
+      float* overlap = m_overlapBuffer[c];
+      for (size_t i = n; i < nwrite; ++i) {
+        out[i] = fftbuf[i] + overlap[i];
+      }
+      // save overlap
+      memCopy(overlap, fftbuf+nwrite, nwrite);
+    }    
+    m_outputBuffer.writeAdvance(nwrite-n);
+  } else {
+    for (size_t c = 0; c < numChannels(); ++c)
+    {
+      float* fftbuf = m_fftBuffer[c];      
+      float* out = m_outputBuffer.writeVector(c);
+      float* overlap = m_overlapBuffer[c];
+      for (size_t i = 0; i < nwrite; ++i) {
+        out[i] = fftbuf[i] + overlap[i];
+      }
+      // save overlap
+      memCopy(overlap, fftbuf+nwrite, nwrite);
+    }
+    // advance output buffer write pointer
+    m_outputBuffer.writeAdvance(nwrite);
+  }
+}
 
-  // advance output buffer write pointer
-  m_outputBuffer.writeAdvance(partitionSize());
+void VEP::Convolver::process(float** dst, const float** src, size_t numChannels, size_t numFrames, size_t binPeriod)
+{
+  pushInput(src, numChannels, numFrames);
+  compute(m_binIndex);
+  pullOutput(dst, numChannels, numFrames);
+  m_binIndex = (m_binIndex + 1) & binPeriod;
 }
 
 void VEP::Convolver::setKernel(const float* srcBuffer, size_t srcNumChannels, size_t srcNumFrames)
@@ -347,22 +427,27 @@ void VEP::Convolver::setKernel(const float* srcBuffer, size_t srcNumChannels, si
 // =====================================================================
 // VEP::Convolution
 
-VEP::Convolution::Convolution(Response* response, size_t numRTProcs)
+VEP::Convolution::Convolution(const Response& response, size_t numRTProcs)
 	: m_response(response),
-    // m_numRTProcs(numRTProcs == 0 ? response->numModules() : numRTProcs),
-    m_numRTProcs(response->numModules()),
+    m_numRTProcs(numRTProcs == 0 ? response.numModules() : numRTProcs),
 		m_process(0)
 {
-  size_t binSize = response->minPartSize();
-  
+  size_t binSize = response.minPartSize();
+
+  size_t delay = 0;
+	if (response.numModules() > m_numRTProcs) {
+	  const Response::Module& module = response[m_numRTProcs];
+    delay = module.offset();
+  }
+
   // initialize convolvers
-  for (size_t i=0; i < response->numModules(); ++i)
-  {
+  for (size_t i=0; i < response.numModules(); ++i) {
    m_convs.push_back(
      new Convolver(
-       response->numChannels(),
+       response.numChannels(),
        binSize,
-       response->module(i)));
+       response[i],
+       i >= m_numRTProcs ? response[m_numRTProcs].offset() : 0));
   }
 	
 	m_binPeriod = m_convs.back()->numBins() - 1;
@@ -370,19 +455,16 @@ VEP::Convolution::Convolution(Response* response, size_t numRTProcs)
   m_binIndex = 0;
   m_binIndex2 = 0;
 	
-	if (response->numModules() > m_numRTProcs) {
-	  const Response::Module& module = response->module(m_numRTProcs);
+	if (response.numModules() > m_numRTProcs) {
+	  const Response::Module& module = response[m_numRTProcs];
     size_t irOffset = module.offset();
-    // m_processDelayBins = irOffset / binSize;
-    // m_processDelayBins = 0;
-    m_process = new Process(this, response->numChannels(), binSize, irOffset, irOffset*4);
+    m_process = new Process(this, response.numChannels(), binSize, irOffset, irOffset*4);
   }
 }
 
 VEP::Convolution::~Convolution()
 {
   delete m_process;
-	delete m_response;
   for (ConvolverArray::iterator it = m_convs.begin(); it != m_convs.end(); ++it)
     delete *it;
 }
@@ -394,35 +476,24 @@ void VEP::Convolution::process(float** dst, const float** src, size_t numChannel
 	if (m_process && !m_process->write(src, numChannels, numFrames))
 	{
 #ifndef NDEBUG
-    // printf("VEP::Convolution: couldn't write to process\n");
+    printf("VEP::Convolution: couldn't write to process\n");
 #endif
     size_t numTries = 100;
-		while ((numTries-- > 0) && !m_process->write(src, numChannels, numFrames)) /* SPINLOCK */;
+		while (/*(numTries-- > 0) &&*/ !m_process->write(src, numChannels, numFrames)) /* SPINLOCK */;
 	}
 	
-	const size_t binIndex = m_binIndex;
-
   for (size_t i=0; i < std::min(m_numRTProcs, m_convs.size()); ++i)
 	{
-    Convolver* conv = m_convs[i];
-    conv->pushInput(src, numChannels, numFrames);
-    conv->compute(binIndex);
-    conv->pullOutput(dst, numChannels, numFrames);
+    m_convs[i]->process(dst, src, numChannels, numFrames, m_binPeriod);
   }
-	
-	m_binIndex = (binIndex + 1) & m_binPeriod;
 	
 	if (m_process && !m_process->read(dst, numChannels, numFrames))
 	{
 #ifndef NDEBUG
-      // printf("VEP::Convolution: couldn't read from process\n");
+      printf("VEP::Convolution: couldn't read from process\n");
 #endif
-    // if (m_processDelayBins > 0) {
-    //   m_processDelayBins--;
-    // } else {
-      size_t numTries = 100;
-  		while (/*(numTries-- > 0) &&*/ !m_process->read(dst, numChannels, numFrames)) /* SPINLOCK */;
-    // }
+    size_t numTries = 100;
+		while (/*(numTries-- > 0) &&*/ !m_process->read(dst, numChannels, numFrames)) /* SPINLOCK */;
 	}
 }
 
@@ -430,21 +501,10 @@ void VEP::Convolution::process2(float** dst, const float** src, size_t numChanne
 {
   // jassert( (dst != src) && (dst->getSampleData(0) != src->getSampleData(0)) );
 
-	const size_t binIndex = m_binIndex2;
-
   for (size_t i=m_numRTProcs; i < m_convs.size(); ++i)
 	{
-    Convolver* conv = m_convs[i];
-    conv->pushInput(src, numChannels, numFrames);
-    conv->compute(binIndex);
-    conv->pullOutput(dst, numChannels, numFrames);
+    m_convs[i]->process(dst, src, numChannels, numFrames, m_binPeriod);
   }
-		
-#if PART_CONV_TRACE_SCHEDULE
-	printf("\n");
-#endif
-	
-	m_binIndex2 = (binIndex + 1) & m_binPeriod;
 }
 
 void VEP::Convolution::setKernel(const float* data, size_t numChannels, size_t numFrames)
@@ -487,6 +547,7 @@ VEP::Convolution::Process::Process(Convolution* owner, size_t numChannels, size_
 		m_numChannels(numChannels),
 		m_binSize(binSize),
 		m_irOffset(irOffset),
+		m_initialDelay(irOffset),
 		m_inFifo(numChannels, fifoSize),
 		m_outFifo(numChannels, fifoSize)
 {
@@ -531,8 +592,16 @@ bool VEP::Convolution::Process::read(float** buffer, size_t numChannels, size_t 
 {
   // printf("Process::read: rspace=%d numSamples=%d\n", m_inFifo.readSpace(), numSamples);
 
-	if (m_outFifo.readSpace() < numSamples)
+  // if (m_initialDelay > 0) {
+  //   assert( (m_initialDelay % numSamples) == 0 );
+  //   m_initialDelay -= numSamples;
+  //   return true;
+  // }
+  
+	if (m_outFifo.readSpace() < numSamples) {
+    // printf("read failure: %d < %d\n", m_outFifo.readSpace(), numSamples);
 		return false;
+	}
 	
 	for (size_t c=0; c < std::min(numChannels, m_numChannels); ++c) {
 		VEP::DSP::mix(buffer[c], m_outFifo.readVector(c), numSamples);
@@ -547,21 +616,21 @@ void VEP::Convolution::Process::run()
 {
   assert( (m_irOffset % m_binSize) == 0 );
   
-  for (size_t i=0; i < m_irOffset; i+=m_binSize)
-  {
-  	for (size_t c=0; c < m_numChannels; ++c)
-  	{
-  		m_srcChannelData[c] = m_inFifo.readVector(c);
-      memZero(m_srcChannelData[c], m_binSize);
-  		m_dstChannelData[c] = m_outFifo.writeVector(c);
-      memZero(m_dstChannelData[c], m_binSize);
-  	}
-	
-  	m_owner->process2(m_dstChannelData, const_cast<const float**>(m_srcChannelData), m_numChannels, m_binSize);
-
-	  m_inFifo.readAdvance(m_binSize);
-  	m_outFifo.writeAdvance(m_binSize);
-  }
+  // for (size_t i=0; i < m_irOffset; i+=m_binSize)
+  // {
+  //  for (size_t c=0; c < m_numChannels; ++c)
+  //  {
+  //    m_srcChannelData[c] = m_inFifo.readVector(c);
+  //     memZero(m_srcChannelData[c], m_binSize);
+  //    m_dstChannelData[c] = m_outFifo.writeVector(c);
+  //     memZero(m_dstChannelData[c], m_binSize);
+  //  }
+  //  
+  //  m_owner->process2(m_dstChannelData, const_cast<const float**>(m_srcChannelData), m_numChannels, m_binSize);
+  // 
+  //    m_inFifo.readAdvance(m_binSize);
+  //  m_outFifo.writeAdvance(m_binSize);
+  // }
   
   printf("run: orspace=%d\n", m_outFifo.readSpace());
   
