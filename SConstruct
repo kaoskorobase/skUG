@@ -192,6 +192,11 @@ plugins.append(
      'src/VEP/VEPPlugin.cpp'
      ]))
 
+# FM7
+
+plugins.append(
+    pluginEnv.SharedLibrary('skUGens/FM7/FM7', ['src/FM7.cpp']))
+
 env.Alias('plugins', plugins)
 Default('plugins')
 
