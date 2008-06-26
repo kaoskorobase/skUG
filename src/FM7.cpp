@@ -201,8 +201,6 @@ void FM7_next_ki(FM7 *unit, int inNumSamples)
     float* mod3 = mod2 + FM7::kNumOps;
     float* mod4 = mod3 + FM7::kNumOps;
     float* mod5 = mod4 + FM7::kNumOps;
-
-    double phasemod;
     
     FM7_DECLARE(0);
     FM7_IMPORT(ops, 0);
