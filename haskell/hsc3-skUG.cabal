@@ -2,6 +2,7 @@ Name:                   hsc3-skUG
 Version:                0.1.0
 Category:		Sound
 License:                GPL
+License-File:		COPYING
 Copyright:              Stefan Kersten, 2005-2008
 Author:                 Stefan Kersten
 Maintainer:             Stefan Kersten <sk@k-hornz.de>
