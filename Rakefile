@@ -5,7 +5,10 @@ require 'bluecloth'
 require 'find'
 require 'fileutils'
 
+PACKAGE      = "skUG"
 SKUG_VERSION = "0.1.0"
+SRC_DIST     = "#{PACKAGE}-src-#{SKUG_VERSION}"
+BIN_DIST     = "#{PACKAGE}-bin-#{SKUG_VERSION}"
 
 DocumentWrapper = %{
 <html>
@@ -62,18 +65,16 @@ task [:xcode, :clean] do
   xcodebuild(XCODEPROJ, "clean")
 end
 
-def mk_dist_name(target)
-  "skUG-#{target}-#{SKUG_VERSION}"
-end
+# =====================================================================
+# Distribution
 
 task [:dist, :src] do
-  dist_name = mk_dist_name("src")
-  `darcs dist -d #{dist_name}`
+  `darcs dist -d #{SRC_DIST}`
 end
 
 task [:dist, :bin] do
   dist_files = ["skUG/FM7"]
-  dist_dir = mk_dist_name("bin")
+  dist_dir = BIN_DIST
   `mkdir -p #{dist_dir}`
   dist_files.each { |f|
     `rsync -a #{f} #{dist_dir}`
@@ -83,3 +84,16 @@ task [:dist, :bin] do
 end
 
 task :dist => ["dist:src", "dist:bin"]
+
+# =====================================================================
+# Cleanup
+
+task :mrproper do
+  `scons -c`
+  `rm -rf build`
+  `rm -rf haskell/dist`
+  `rm -f #{SRC_DIST}.tar.gz`
+  `rm -f #{BIN_DIST}.tar.gz`
+end
+
+# EOF
