@@ -36,7 +36,7 @@
 
 /* Begin PBXFileReference section */
 		53DA28E90E13EC6E0036313A /* FM7.cpp */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.cpp.cpp; path = FM7.cpp; sourceTree = "<group>"; };
-		F3FE07360B0D759000A29459 /* FM7.scx */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.dylib"; includeInIndex = 0; path = FM7.scx; sourceTree = BUILT_PRODUCTS_DIR; };
+		F3FE07360B0D759000A29459 /* FM7UB.scx */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.dylib"; includeInIndex = 0; path = FM7UB.scx; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -71,7 +71,7 @@
 		F50D060302E69C2101CA2799 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				F3FE07360B0D759000A29459 /* FM7.scx */,
+				F3FE07360B0D759000A29459 /* FM7UB.scx */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -120,7 +120,7 @@
 			name = FM7;
 			productInstallPath = /usr/local/lib;
 			productName = BinaryOpUGens;
-			productReference = F3FE07360B0D759000A29459 /* FM7.scx */;
+			productReference = F3FE07360B0D759000A29459 /* FM7UB.scx */;
 			productType = "com.apple.product-type.library.dynamic";
 		};
 /* End PBXNativeTarget section */
@@ -158,7 +158,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "cp \"$TARGET_BUILD_DIR/$PRODUCT_NAME\".scx \"skUG/$PRODUCT_NAME/\"";
+			shellScript = "cp \"$TARGET_BUILD_DIR/$PRODUCT_NAME\".scx \"skUG/FM7/\"\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
@@ -302,7 +302,7 @@
 				OTHER_LIBTOOL_FLAGS = "";
 				OTHER_REZFLAGS = "";
 				PREBINDING = NO;
-				PRODUCT_NAME = FM7;
+				PRODUCT_NAME = FM7UB;
 				REZ_EXECUTABLE = YES;
 				SECTORDER_FLAGS = "";
 				WARNING_CFLAGS = (
@@ -334,7 +334,7 @@
 				OTHER_LIBTOOL_FLAGS = "";
 				OTHER_REZFLAGS = "";
 				PREBINDING = NO;
-				PRODUCT_NAME = FM7;
+				PRODUCT_NAME = FM7UB;
 				REZ_EXECUTABLE = YES;
 				SECTORDER_FLAGS = "";
 				WARNING_CFLAGS = (
@@ -365,7 +365,7 @@
 				OTHER_LIBTOOL_FLAGS = "";
 				OTHER_REZFLAGS = "";
 				PREBINDING = NO;
-				PRODUCT_NAME = FM7;
+				PRODUCT_NAME = FM7UB;
 				REZ_EXECUTABLE = YES;
 				SECTORDER_FLAGS = "";
 				WARNING_CFLAGS = (
