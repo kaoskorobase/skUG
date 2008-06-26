@@ -5,6 +5,8 @@ require 'bluecloth'
 require 'find'
 require 'fileutils'
 
+SKUG_VERSION = "0.1.0"
+
 DocumentWrapper = %{
 <html>
   <head><title>%s</title></head>
@@ -58,4 +60,15 @@ end
 
 task [:xcode, :clean] do
   xcodebuild(XCODEPROJ, "clean")
+end
+
+task [:dist, :bin] do
+  dist_files = ["skUG/FM7"]
+  dist_dir = "skUG-bin-#{SKUG_VERSION}"
+  `mkdir -p #{dist_dir}`
+  dist_files.each { |f|
+    `rsync -av #{f} #{dist_dir}`
+  }
+  system("tar", "vvcfz", "#{dist_dir}.tar.gz", dist_dir)
+  `rm -r #{dist_dir}`
 end
