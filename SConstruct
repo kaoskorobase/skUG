@@ -185,7 +185,7 @@ vepEnv = pluginEnv.Copy()
 vepEnv.ParseConfig('pkg-config --cflags --libs fftw3f')
 plugins.append(
     vepEnv.SharedLibrary(
-    'skUGens/VEP/VEPConvolution',
+    'skUG/VEP/VEPConvolution',
     [
      'src/VEP/VEPConv.cpp',
      'src/VEP/VEPFFT.cpp',
@@ -195,7 +195,7 @@ plugins.append(
 # FM7
 
 plugins.append(
-    pluginEnv.SharedLibrary('skUGens/FM7/FM7', ['src/FM7.cpp']))
+    pluginEnv.SharedLibrary('skUG/FM7/FM7', ['src/FM7.cpp']))
 
 env.Alias('plugins', plugins)
 Default('plugins')
