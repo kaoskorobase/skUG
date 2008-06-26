@@ -82,4 +82,4 @@ task [:dist, :bin] do
   `rm -r #{dist_dir}`
 end
 
-task [:dist] => ["dist:src", "dist:bin"]
+task :dist => ["dist:src", "dist:bin"]
