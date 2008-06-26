@@ -62,13 +62,24 @@ task [:xcode, :clean] do
   xcodebuild(XCODEPROJ, "clean")
 end
 
+def mk_dist_name(target)
+  "skUG-#{target}-#{SKUG_VERSION}"
+end
+
+task [:dist, :src] do
+  dist_name = mk_dist_name("src")
+  `darcs dist -d #{dist_name}`
+end
+
 task [:dist, :bin] do
   dist_files = ["skUG/FM7"]
-  dist_dir = "skUG-bin-#{SKUG_VERSION}"
+  dist_dir = mk_dist_name("bin")
   `mkdir -p #{dist_dir}`
   dist_files.each { |f|
-    `rsync -av #{f} #{dist_dir}`
+    `rsync -a #{f} #{dist_dir}`
   }
-  system("tar", "vvcfz", "#{dist_dir}.tar.gz", dist_dir)
+  system("tar", "cfz", "#{dist_dir}.tar.gz", dist_dir)
   `rm -r #{dist_dir}`
 end
+
+task [:dist] => ["dist:src", "dist:bin"]
