@@ -144,6 +144,17 @@ Help(opts.GenerateHelpText(env))
 # plugins
 # ======================================================================
 
+def make_plugin_target(env, dir, name):
+    if env['PLATFORM'] == 'darwin':
+        pdir = 'osx'
+    elif env['PLATFORM'] == 'linux':
+        pdir = 'linux'
+    elif env['PLATFORM'] == 'windows':
+        pdir = 'windows'
+    else
+        pdir = env['PLATFORM']
+    return os.path.join(dir, pdir, name)
+
 pluginEnv = env.Copy(
 	SHLIBPREFIX = '', SHLIBSUFFIX = env['PLUGIN_EXT']
 	)
@@ -170,7 +181,7 @@ if not env['PLATFORM'] in ['windows']:
 
 # FM7
 plugins.append(
-    pluginEnv.SharedLibrary('skUG/FM7/FM7', ['src/FM7.cpp']))
+    pluginEnv.SharedLibrary(make_plugin_target(env, 'skUG/FM7', 'FM7'), ['src/FM7.cpp']))
 
 env.Alias('plugins', plugins)
 Default('plugins')
