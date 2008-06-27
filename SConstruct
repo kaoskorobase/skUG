@@ -25,58 +25,25 @@ SConsignFile()
 PACKAGE = 'vep'
 VERSION = '0.1'
 
-PLATFORM = os.uname()[0].lower()
-CPU = os.uname()[4].lower()
-
-if PLATFORM == 'darwin':
-    PLATFORM_SYMBOL = 'SC_DARWIN'
-    PLUGIN_EXT = '.scx'
-    DEFAULT_PREFIX = '/'
-elif PLATFORM == 'linux':
-    PLATFORM_SYMBOL = 'SC_LINUX'
-    PLUGIN_EXT = '.so'
-    DEFAULT_PREFIX = '/usr/local'
-# elif PLATFORM == 'windows':
-#     PLATFORM_SYMBOL = 'SC_WIN32'
-#     PLUGIN_EXT = '.scx'
-#     DEFAULT_PREFIX = '/'
-else:
-    print 'Unknown platform: %s' % PLATFORM
-    Exit(1)
-
 # ======================================================================
 # util
 # ======================================================================
 
-def flatten_dir(dir):
-    res = []
-    for root, dirs, files in os.walk(dir):
-        if 'CVS' in dirs: dirs.remove('CVS')
-        for f in files:
-            res.append(os.path.join(root, f))
-    return res
-
-def install_dir(env, src_dir, dst_dir, filter_re, strip_levels=0):
-    nodes = []
-    for root, dirs, files in os.walk(src_dir):
-        src_paths = []
-        dst_paths = []
-        if '.svn' in dirs: dirs.remove('.svn')
-        for d in dirs[:]:
-            if filter_re.match(d):
-                src_paths += flatten_dir(os.path.join(root, d))
-                dirs.remove(d)
-        for f in files:
-            if filter_re.match(f):
-                src_paths.append(os.path.join(root, f))
-        dst_paths += map(
-            lambda f:
-            os.path.join(
-            dst_dir,
-            *f.split(os.path.sep)[strip_levels:]),
-            src_paths)
-        nodes += env.InstallAs(dst_paths, src_paths)
-    return nodes
+def set_platform(env, platform, cpu):
+    env['PLATFORM']             = platform
+    env['CPU']                  = cpu
+    if platform == 'darwin':
+        env['PLATFORM_SYMBOL']  = 'SC_DARWIN'
+        env['PLUGIN_EXT']       = '.scx'
+    elif platform == 'linux':
+        env['PLATFORM_SYMBOL']  = 'SC_LINUX'
+        env['PLUGIN_EXT']       = '.so'
+    elif platform == 'windows':
+        env['PLATFORM_SYMBOL']  = 'SC_WIN32'
+        env['PLUGIN_EXT']       = '.scx'
+    else:
+        print 'Unknown platform: %s' % PLATFORM
+        Exit(1)
 
 def make_os_env(*keys):
     env = os.environ
@@ -100,14 +67,11 @@ opts.AddOptions(
                'Build with benchmarking instrumentation', 0),
     BoolOption('DEBUG',
                'Build with debugging information', 0),
-    PathOption('DESTDIR',
-               'Intermediate installation prefix for packaging', '/'),
-    PathOption('PREFIX',
-               'Installation prefix', DEFAULT_PREFIX),
-    PathOption('SCSRCDIR',
-               'SuperCollider source directory', '../SuperCollider3/'),
+    PathOption('SC_SOURCE_DIR',
+               'SuperCollider source directory', '../supercollider/'),
     BoolOption('SSE',
                'Build with SSE support', 1),
+    ('CROSSCOMPILE', 'Platform to crosscompile for', 'None')
     )
 
 # ======================================================================
@@ -118,13 +82,25 @@ env = Environment(options = opts,
                   PACKAGE = PACKAGE,
                   VERSION = VERSION,
                   ENV = make_os_env('PATH', 'PKG_CONFIG_PATH'))
+
+# set platform
+if env['CROSSCOMPILE'] != 'None':
+    if env['CROSSCOMPILE'] == 'mingw':
+        set_platform(env, 'windows', 'i386')
+        env.Tool('crossmingw')
+    else:
+        print 'Unknown cross compilation environment: %s' % env['CROSSCOMPILE']
+        Exit(1)
+else:
+    set_platform(env, os.uname()[0].lower(), os.uname()[4].lower())
+
 env.Append(
     CCFLAGS = env['CUSTOMCCFLAGS'],
     CXXFLAGS = env['CUSTOMCXXFLAGS'])
 
 # defines and compiler flags
 env.Append(
-    CPPDEFINES = ['_REENTRANT', PLATFORM_SYMBOL],
+    CPPDEFINES = ['_REENTRANT', env['PLATFORM_SYMBOL']],
     CCFLAGS = ['-Wno-unknown-pragmas'],
     CXXFLAGS = ['-Wno-deprecated']
     )
@@ -140,10 +116,10 @@ else:
     env.Append(CPPDEFINES = ['NDEBUG'])
 
 # platform specific
-if CPU == 'ppc':
+if env['CPU'] == 'ppc':
     env.Append(CCFLAGS = '-fsigned-char')
 
-if env['ALTIVEC'] and (CPU == 'ppc'):
+if env['ALTIVEC'] and (env['CPU'] == 'ppc'):
     altiEnv = env.Copy()
     altiEnv.Append(CCFLAGS = ['-maltivec'])
     altiConf = Configure(altiEnv)
@@ -151,7 +127,7 @@ if env['ALTIVEC'] and (CPU == 'ppc'):
     altiConf.Finish()
     if has_vec:
         env.Append(CCFLAGS = ['-maltivec', '-mabi=altivec'])
-elif env['SSE'] and re.match("^i?[0-9x]86", CPU):
+elif env['SSE'] and re.match("^i?[0-9x]86", env['CPU']):
     sseEnv = env.Copy()
     sseEnv.Append(CCFLAGS = ['-msse2'])
     sseConf = Configure(sseEnv)
@@ -169,79 +145,35 @@ Help(opts.GenerateHelpText(env))
 # ======================================================================
 
 pluginEnv = env.Copy(
-	SHLIBPREFIX = '', SHLIBSUFFIX = PLUGIN_EXT
+	SHLIBPREFIX = '', SHLIBSUFFIX = env['PLUGIN_EXT']
 	)
 pluginEnv.Append(
-    CPPPATH = map(lambda f: os.path.join(env['SCSRCDIR'], 'headers', f),
+    CPPPATH = map(lambda f: os.path.join(env['SC_SOURCE_DIR'], 'headers', f),
                   ['common', 'plugin_interface', 'server']))
-if PLATFORM == 'darwin':
+if env['PLATFORM'] == 'darwin':
     # build a MACH-O bundle
     pluginEnv['SHLINKFLAGS'] = '$LINKFLAGS -bundle -flat_namespace -undefined suppress'
 plugins = []
 
 # VEP
-
-vepEnv = pluginEnv.Copy()
-vepEnv.ParseConfig('pkg-config --cflags --libs fftw3f')
-plugins.append(
-    vepEnv.SharedLibrary(
-    'skUG/VEP/VEPConvolution',
-    [
-     'src/VEP/VEPConv.cpp',
-     'src/VEP/VEPFFT.cpp',
-     'src/VEP/VEPPlugin.cpp'
-     ]))
+if not env['PLATFORM'] in ['windows']:
+    vepEnv = pluginEnv.Copy()
+    vepEnv.ParseConfig('pkg-config --cflags --libs fftw3f')
+    plugins.append(
+        vepEnv.SharedLibrary(
+        'skUG/VEP/VEPConvolution',
+        [
+         'src/VEP/VEPConv.cpp',
+         'src/VEP/VEPFFT.cpp',
+         'src/VEP/VEPPlugin.cpp'
+         ]))
 
 # FM7
-
 plugins.append(
     pluginEnv.SharedLibrary('skUG/FM7/FM7', ['src/FM7.cpp']))
 
 env.Alias('plugins', plugins)
 Default('plugins')
-
-# ======================================================================
-# distribution
-# ======================================================================
-
-DIST_FILES = Split('''
-lib/VEP.sc
-SConstruct
-src/VEP.cpp
-''')
-
-DIST_DIRS = Split('''
-''')
-
-def dist_paths():
-    paths = DIST_FILES[:]
-    for base in DIST_DIRS:
-        for root, dirs, files in os.walk(base):
-            if '.svn' in dirs: dirs.remove('.svn')
-            for path in files:
-                paths.append(os.path.join(root, path))
-    paths.sort()
-    return paths
-
-def build_tar(env, target, source):
-    paths = dist_paths()
-    tarfile_name = str(target[0])
-    tmp, ext = os.path.splitext(tarfile_name)
-    tar_name = os.path.splitext(os.path.basename(tmp))[0]
-    tar = tarfile.open(tarfile_name, "w:" + ext[1:])
-    for path in paths:
-        tar.add(path, os.path.join(tar_name, path))
-    tar.close()
-
-snapshot_tarball = PACKAGE + '-' + time.strftime("%Y%m%d", time.localtime()) + '.tar.bz2'
-env.Alias('snapshot-dist', snapshot_tarball)
-env.AlwaysBuild(env.Command(snapshot_tarball, None, build_tar))
-
-release_tarball = PACKAGE + '-' + VERSION + '.tar.bz2'
-env.Alias('release-dist', release_tarball)
-env.AlwaysBuild(env.Command(release_tarball, None, build_tar))
-
-env.Alias('dist', ['snapshot-dist'])
 
 # ======================================================================
 # cleanup
