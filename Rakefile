@@ -44,18 +44,37 @@ def xcodebuild(project, command, target="All", config="Deployment")
   system("xcodebuild", "-project", project, "-target", target, "-configuration", config, command)
 end
 
+def sconsbuild(*args)
+  system("scons", *args)
+end
+
 # =====================================================================
 # Building
 
 XCODEPROJ = "skUG.xcodeproj"
 
-task :xcode do
+task [:build, :xcode] do
   xcodebuild(XCODEPROJ, "build")
 end
 
-task [:xcode, :clean] do
+task [:build, :xcode, :clean] do
   xcodebuild(XCODEPROJ, "clean")
 end
+
+task [:build, :scons] => "build:scons:clean" do
+  sconsbuild
+end
+
+task [:build, :scons, :mingw] => "build:scons:clean" do
+  sconsbuild %|CROSSCOMPILE=mingw|
+end
+
+task [:build, :scons, :clean] do
+  `scons -c`
+  `rm -f scache.conf`
+end
+
+task [:build] => ["build:scons", "build:scons:mingw", "build:xcode"]
 
 # =====================================================================
 # Documentation
