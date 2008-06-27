@@ -1,8 +1,8 @@
 /*  -*- mode: c++; indent-tabs-mode: nil; c-basic-offset: 4 -*-
     vim: et sta sw=4:
 
-    SKUG - SuperCollider UGen Library
-    Copyright (c) 2005 Stefan Kersten. All rights reserved.
+    skUG - SuperCollider UGen Library
+    Copyright (c) 2005-2008 Stefan Kersten. All rights reserved.
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
