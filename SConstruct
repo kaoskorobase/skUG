@@ -151,7 +151,7 @@ def make_plugin_target(env, dir, name):
         pdir = 'linux'
     elif env['PLATFORM'] == 'windows':
         pdir = 'windows'
-    else
+    else:
         pdir = env['PLATFORM']
     return os.path.join(dir, pdir, name)
 
