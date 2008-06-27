@@ -6,7 +6,7 @@ require 'find'
 require 'fileutils'
 
 PACKAGE      = "skUG"
-SKUG_VERSION = "0.1.0"
+SKUG_VERSION = File.read("VERSION").strip
 SRC_DIST     = "#{PACKAGE}-src-#{SKUG_VERSION}"
 BIN_DIST     = "#{PACKAGE}-bin-#{SKUG_VERSION}"
 
