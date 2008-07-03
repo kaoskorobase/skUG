@@ -1,0 +1,40 @@
+// -*- Faust -*-
+//
+// Band Limited Impulse Train (BLIT) oscillator
+//
+// Based on
+//   Tim Stilson, Julius Smith, "Alias-Free Digital Synthesis of
+//   Classic Analog Waveforms"
+//
+// and its implementation in the Synthesis Toolkit (STk):
+//   http://ccrma.stanford.edu/software/stk/
+//
+// stefan kersten <sk@k-hornz.de>
+//
+
+import("math.lib");
+import("music.lib");
+
+// this should go into math.lib (std::numeric_limits<float>::epsilon())
+EPSILON = 0.00000011920928955078125;
+
+blit(F,N) = output
+  with {
+    m = 2 * N + 1;
+    phase = (_ <: (_, _) : -(_, >=(PI) * PI)) ~ +(PI*F/SR);
+    denom = sin(phase);
+    output = select2( denom <= EPSILON,
+                      sin(m * phase) : /(m * denom),
+                      1.0 );
+  };
+
+blit_saw(F,N) = +(output - C2) ~ *(0.995) // leaky integration of blit
+  with {
+    C2 = F / SR;
+    m = 2 * N + 1;
+    phase = (_ <: (_, _) : -(_, >=(PI) * PI)) ~ +(PI*F/SR);
+    denom = sin(phase);
+    output = select2( fabs(denom) <= EPSILON,
+                      sin(m * phase) : /(denom * SR / F),
+                      m * C2 ) ;
+  };
