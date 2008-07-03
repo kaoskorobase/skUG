@@ -11,7 +11,7 @@ import tarfile
 import time
 
 # ======================================================================
-# setup
+# Setup
 # ======================================================================
 
 EnsureSConsVersion(0, 96)
@@ -19,14 +19,14 @@ EnsurePythonVersion(2, 3)
 SConsignFile()
 
 # ======================================================================
-# constants
+# Constants
 # ======================================================================
 
 PACKAGE = 'vep'
 VERSION = '0.1'
 
 # ======================================================================
-# util
+# Util
 # ======================================================================
 
 def set_platform(env, platform, cpu):
@@ -54,7 +54,7 @@ def make_os_env(*keys):
     return res
 
 # ======================================================================
-# command line options
+# Command line options
 # ======================================================================
 
 opts = Options('scache.conf', ARGUMENTS)
@@ -75,7 +75,7 @@ opts.AddOptions(
     )
 
 # ======================================================================
-# basic environment
+# Base environment
 # ======================================================================
 
 env = Environment(options = opts,
@@ -83,7 +83,10 @@ env = Environment(options = opts,
                   VERSION = VERSION,
                   ENV = make_os_env('PATH', 'PKG_CONFIG_PATH'))
 
-# set platform
+# Tools
+env.Tool('faust')
+
+# Cross compilation
 if env['CROSSCOMPILE'] != 'None':
     if env['CROSSCOMPILE'] == 'mingw':
         set_platform(env, 'windows', 'i386')
@@ -94,28 +97,30 @@ if env['CROSSCOMPILE'] != 'None':
 else:
     set_platform(env, os.uname()[0].lower(), os.uname()[4].lower())
 
+# Custom compiler flags
 env.Append(
     CCFLAGS = env['CUSTOMCCFLAGS'],
     CXXFLAGS = env['CUSTOMCXXFLAGS'])
 
-# defines and compiler flags
+# Defines and compiler flags
 env.Append(
     CPPDEFINES = ['_REENTRANT', env['PLATFORM_SYMBOL']],
     CCFLAGS = ['-Wno-unknown-pragmas'],
-    CXXFLAGS = ['-Wno-deprecated']
-    )
+    CXXFLAGS = ['-Wno-deprecated'],
+    CPPPATH = map(lambda f: os.path.join(env['SC_SOURCE_DIR'], 'headers', f),
+                  ['common', 'plugin_interface', 'server']))
 
-# benchmarking
+# Benchmarking
 if env['BENCHMARK']:
     env.Append(CPPDEFINES = ['VEP_BENCHMARK'])
 
-# debugging flags
+# Debugging flags
 if env['DEBUG']:
     env.Append(CCFLAGS = '-g')
 else:
     env.Append(CPPDEFINES = ['NDEBUG'])
 
-# platform specific
+# Platform specific
 if env['CPU'] == 'ppc':
     env.Append(CCFLAGS = '-fsigned-char')
 
@@ -136,12 +141,12 @@ elif env['SSE'] and re.match("^i?[0-9x]86", env['CPU']):
     if has_vec:
         env.Append(CCFLAGS = ['-msse', '-mfpmath=sse'])
 
-# finish
+# Finish
 opts.Save('scache.conf', env)
 Help(opts.GenerateHelpText(env))
 
 # ======================================================================
-# plugins
+# Plugins
 # ======================================================================
 
 def make_plugin_target(env, dir, name):
@@ -155,39 +160,54 @@ def make_plugin_target(env, dir, name):
         pdir = env['PLATFORM']
     return os.path.join(dir, pdir, name)
 
+def make_faust_plugin_target(env, dir, src):
+    return make_plugin_target(env, dir, os.path.basename(os.path.splitext(str(src[0]))[0]))
+
+def make_plugin(env, dir, name, src):
+    return env.Alias('plugins', env.SharedLibrary(make_plugin_target(env, dir, name), src))
+
+def make_faust_plugin(env, dir, src):
+    fsrc = env.Faust(src)
+    return env.Alias('plugins', env.SharedLibrary(make_faust_plugin_target(env, dir, fsrc), fsrc))
+
+# Initialize plugin environment
 pluginEnv = env.Copy(
-	SHLIBPREFIX = '', SHLIBSUFFIX = env['PLUGIN_EXT']
-	)
-pluginEnv.Append(
-    CPPPATH = map(lambda f: os.path.join(env['SC_SOURCE_DIR'], 'headers', f),
-                  ['common', 'plugin_interface', 'server']))
+	SHLIBPREFIX = '',
+	SHLIBSUFFIX = env['PLUGIN_EXT'],
+	FAUST_ARCHITECTURE = 'supercollider')
 if env['PLATFORM'] == 'darwin':
     # build a MACH-O bundle
     pluginEnv['SHLINKFLAGS'] = '$LINKFLAGS -bundle -flat_namespace -undefined suppress'
-plugins = []
 
 # VEP
 if not env['PLATFORM'] in ['windows']:
     vepEnv = pluginEnv.Copy()
     vepEnv.ParseConfig('pkg-config --cflags --libs fftw3f')
-    plugins.append(
-        vepEnv.SharedLibrary(
-        'skUG/VEP/VEPConvolution',
+    make_plugin(
+        vepEnv, 'skUG/VEP', 'VEPConvolution',
         [
          'src/VEP/VEPConv.cpp',
          'src/VEP/VEPFFT.cpp',
          'src/VEP/VEPPlugin.cpp'
-         ]))
+         ])
 
 # FM7
-plugins.append(
-    pluginEnv.SharedLibrary(make_plugin_target(env, 'skUG/FM7', 'FM7'), ['src/FM7.cpp']))
+make_plugin(pluginEnv, 'skUG/FM7', 'FM7', ['src/FM7.cpp'])
 
-env.Alias('plugins', plugins)
+# Faust
+FAUST_SOURCE = Split('''
+src/Faust/Blitz.dsp
+src/Faust/Blitzaw.dsp
+src/Faust/Blitzquare.dsp
+''')
+
+for src in FAUST_SOURCE:
+    make_faust_plugin(pluginEnv, 'skUG/Faust', src)
+
 Default('plugins')
 
 # ======================================================================
-# cleanup
+# Cleanup
 # ======================================================================
 
 env.Clean('scrub',
