@@ -21,8 +21,8 @@ EPSILON = 0.00000011920928955078125;
 blit(F,N) = output
   with {
     m = 2 * N + 1;
-    phase = (_ <: (_, _) : -(_, >=(PI) * PI)) ~ +(PI*F/SR);
-    denom = sin(phase);
+    phase  = (_ <: -(_, >=(PI) * PI)) ~ +(PI*F/SR);
+    denom  = sin(phase);
     output = select2( denom <= EPSILON,
                       sin(m * phase) : /(m * denom),
                       1.0 );
