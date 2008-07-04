@@ -114,6 +114,11 @@ env.Append(
 if env['BENCHMARK']:
     env.Append(CPPDEFINES = ['VEP_BENCHMARK'])
 
+# Optimizer flags
+# FIXME: Omitting -O2 crashes Faust plugins during initialization.
+env.Append(
+    CCFLAGS = ['-O2', '-ffast-math', '-funroll-loops', '-fstrength-reduce', '-ftree-vectorize'])
+
 # Debugging flags
 if env['DEBUG']:
     env.Append(CCFLAGS = '-g')
