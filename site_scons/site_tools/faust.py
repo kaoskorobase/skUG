@@ -60,8 +60,8 @@ def generate(env):
             action = ['faust -o /dev/null -xml $SOURCE', SCons.Defaults.Move('$TARGET', '${SOURCE}.xml')],
             suffix = '.dsp.xml',
             src_suffix = '.dsp')
-    sc = SCons.Builder.Builder(
-            action = '$FAUST2SC --prefix="${FAUST_PREFIX}" -o $TARGET $SOURCE',
+    sc  = SCons.Builder.Builder(
+            action = '$FAUST2SC --prefix="${FAUST2SC_PREFIX}" -o $TARGET $SOURCE',
             suffix = '.sc',
             src_suffix = '.dsp.xml')
 
