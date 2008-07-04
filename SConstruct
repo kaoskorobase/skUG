@@ -199,6 +199,22 @@ FAUST_SOURCE = Split('''
 src/Faust/Blitz.dsp
 src/Faust/Blitzaw.dsp
 src/Faust/Blitzquare.dsp
+
+src/Faust/ButterHP2.dsp
+src/Faust/ButterHP4.dsp
+src/Faust/ButterHP6.dsp
+
+src/Faust/ButterHP2C.dsp
+src/Faust/ButterHP4C.dsp
+src/Faust/ButterHP6C.dsp
+
+src/Faust/ButterLP2.dsp
+src/Faust/ButterLP4.dsp
+src/Faust/ButterLP6.dsp
+
+src/Faust/ButterLP2C.dsp
+src/Faust/ButterLP4C.dsp
+src/Faust/ButterLP6C.dsp
 ''')
 
 for src in FAUST_SOURCE:

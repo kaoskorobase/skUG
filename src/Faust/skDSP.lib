@@ -1,0 +1,26 @@
+import("math.lib");
+import("music.lib");
+
+hz2rad(f) = 2*PI*f/SR;
+
+// Constrain x in interval [l,h].
+clip(x,l,h) = max(l, min(x, h));
+
+// Table indices normalized to [0,1].
+table_time(n) = float(time)/float(n);
+
+// Convert value in [0,1] to fractional table index.
+table_index_f(n, x) = x * float(n);
+
+// Convert value in [0,1] to integer table index.
+table_index_i(n, x) = int(floor(x * float(n)));
+
+// Table lookup with linear interpolation. Faust seems to be adding one guard
+// point to every table it generates.
+rdtable_l(n,f,x) = s1 + d * (s2 - s1)
+    with {
+        i  = int(x);
+        d  = decimal(x);
+        s1 = rdtable(n+1, f, i);
+        s2 = rdtable(n+1, f, i+1);
+    };
