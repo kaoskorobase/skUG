@@ -172,8 +172,13 @@ def make_plugin(env, dir, name, src):
     return env.Alias('plugins', env.SharedLibrary(make_plugin_target(env, dir, name), src))
 
 def make_faust_plugin(env, dir, src):
-    fsrc = env.Faust(src)
-    return env.Alias('plugins', env.SharedLibrary(make_faust_plugin_target(env, dir, fsrc), fsrc))
+    cpp = env.Faust(src)
+    lib = env.SharedLibrary(make_faust_plugin_target(env, dir, cpp), cpp)
+    name = os.path.basename(os.path.splitext(src)[0])
+    svg = env.FaustSVG(os.path.join(dir, name), src)
+    xml = env.FaustXML(os.path.join(dir, name), src)
+    sc = env.FaustSC(xml)
+    return env.Alias('plugins', [lib, sc, svg, xml])
 
 # Initialize plugin environment
 pluginEnv = env.Copy(
