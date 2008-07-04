@@ -44,7 +44,7 @@ import SCons.Tool
 import SCons.Util
 
 FAUST = 'faust'
-INCLUDE_RE = re.compile(r'import\s+\(\s+"([^"]+)"\s+\)\s+;', re.M)
+INCLUDE_RE = re.compile(r'import\s*\(\s*"([^"]+)"\s*\)\s*;', re.M)
 
 def faust_scan(node, env, path):
    contents = node.get_contents()
