@@ -4,7 +4,7 @@ declare author    "Stefan Kersten";
 declare license   "GPL";
 declare copyright "Copyright © Stefan Kersten 2007-2008";
 
-import("osc.lib");
+import("skOsc.lib");
 
 process(f) = blit_saw(f, n)
     with {
