@@ -64,9 +64,15 @@ def generate(env):
             action = '$FAUST2SC --prefix="${FAUST2SC_PREFIX}" -o $TARGET $SOURCE',
             suffix = '.sc',
             src_suffix = '.dsp.xml')
+    svg = SCons.Builder.Builder(
+            action = ['faust -o /dev/null -svg $SOURCE', SCons.Defaults.Move('$TARGET', '${SOURCE}-svg')],
+            suffix = '.dsp-svg',
+            src_suffix = '.dsp',
+            target_factory = env.Dir)
 
     env.Append(BUILDERS = { 'Faust' : dsp,
                             'FaustXML' : xml,
+                            'FaustSVG' : svg,
                             'FaustSC' : sc })
 
     env['FAUST_ARCHITECTURE'] = 'module'
