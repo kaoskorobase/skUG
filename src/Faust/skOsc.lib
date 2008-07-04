@@ -1,5 +1,15 @@
-// -*- Faust -*-
-//
+declare name      "Oscillator library";
+declare version   "1.0";
+declare author    "Stefan Kersten";
+declare license   "GPL";
+declare copyright "Copyright (c) Stefan Kersten 2008";
+
+import("math.lib");
+import("music.lib");
+
+// this should go into math.lib (std::numeric_limits<float>::epsilon())
+EPSILON = 0.00000011920928955078125;
+
 // Band Limited Impulse Train (BLIT) oscillator
 //
 // Based on
@@ -9,15 +19,6 @@
 // and its implementation in the Synthesis Toolkit (STk):
 //   http://ccrma.stanford.edu/software/stk/
 //
-// stefan kersten <sk@k-hornz.de>
-//
-
-import("math.lib");
-import("music.lib");
-
-// this should go into math.lib (std::numeric_limits<float>::epsilon())
-EPSILON = 0.00000011920928955078125;
-
 blit(F,N) = output
   with {
     m = 2 * N + 1;

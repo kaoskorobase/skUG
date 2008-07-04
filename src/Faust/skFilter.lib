@@ -1,3 +1,9 @@
+declare name      "Filter library";
+declare version   "1.0";
+declare author    "Stefan Kersten";
+declare license   "GPL";
+declare copyright "Copyright (c) Stefan Kersten 2008";
+
 import("filter.lib");
 import("music.lib");
 import("skDSP.lib");
