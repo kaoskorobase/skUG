@@ -76,8 +76,9 @@ def generate(env):
                             'FaustSC' : sc })
 
     env['FAUST_ARCHITECTURE'] = 'module'
-    env['FAUST_PREFIX'] = ''
-
+    env['FAUST2SC'] = 'faust2sc'
+    env['FAUST2SC_PREFIX'] = ''
+    
     env.Append(SCANNERS = env.Scanner(function = faust_scan, skeys = ['.dsp']))
 
 def exists(env):
