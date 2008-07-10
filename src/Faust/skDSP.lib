@@ -60,14 +60,56 @@ table_time(n) = float(time)/float(n);
 table_index_f(n, x) = x * float(n);
 
 // Convert value in [0,1] to integer table index.
-table_index_i(n, x) = int(floor(x * float(n)));
+table_index_i(n, x) = int(floor(table_index_f(n, x)));
 
-// Table lookup with linear interpolation. Faust seems to be adding one guard
-// point to every table it generates.
-rdtable_l(n,f,x) = s1 + d * (s2 - s1)
+// Table lookup with linear interpolation.
+rdtable_l(n,f,x) = y0 + xf * (y1 - y0)
     with {
-        i  = int(x);
-        d  = decimal(x);
-        s1 = rdtable(n+1, f, i);
-        s2 = rdtable(n+1, f, i+1);
+        xi = table_index_i(n, x);
+        xf = table_index_f(n, x) - xi;
+        fn = table_time(n) : f;
+        y0 = rdtable(n+1, fn, xi  );
+        y1 = rdtable(n+1, fn, xi+1);
     };
+
+// Table lookup with cubic interpolation (James McCartney).
+//
+// From http://www.musicdsp.org/
+//
+rdtable_c_jmc(n,f,x) = ((c3 * x + c2) * x + c1) * x + c0
+    with {
+        xi  = table_index_i(n, x);
+        xf  = table_index_f(n, x) - xi;
+        fn  = prefix(0 : f, table_time(n) : f);
+        ym1 = rdtable(n+3, fn, xi  );
+        y0  = rdtable(n+3, fn, xi+1);
+        y1  = rdtable(n+3, fn, xi+2);
+        y2  = rdtable(n+3, fn, xi+3);
+        c0  = y0;
+        c1  = 0.5 * (y1 - ym1);
+        c3  = 1.5 * (y0 - y1) + 0.5 * (y2 - ym1);
+        c2  = ym1 - y0 + c1 - c3;
+    };
+
+// Table lookup with cubic interpolation (Laurent de Soras).
+//
+// From http://www.musicdsp.org/
+//
+rdtable_c_lds(n,f,x) = ((a * xf + b) * xf + c) * xf + y0
+    with {
+        xi  = table_index_i(n, x);
+        xf  = table_index_f(n, x) - xi;
+        fn  = prefix(0 : f, table_time(n) : f);
+        ym1 = rdtable(n+3, fn, xi  );
+        y0  = rdtable(n+3, fn, xi+1);
+        y1  = rdtable(n+3, fn, xi+2);
+        y2  = rdtable(n+3, fn, xi+3);
+        c   = (y1 - ym1) * 0.5;
+        v   = y0 - y1;
+        w   = c + v;
+        a   = w + v + (y2 - y0) * 0.5;
+        b   = neg(w + a);
+    };
+
+// Table lookup with cubic interpolation.
+rdtable_c = rdtable_c_jmc;
