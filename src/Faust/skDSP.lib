@@ -7,10 +7,51 @@ declare copyright "Copyright (c) Stefan Kersten 2008";
 import("math.lib");
 import("music.lib");
 
-hz2rad(f) = 2*PI*f/SR;
+// ====================================================================
+// Unit conversions
 
-// Constrain x in interval [l,h].
+// Convert Hertz to radians per sample.
+hz2rad(f) = 2.*PI*f/float(SR);
+
+// Convert radians per sample to Hertz.
+rad2hz(r) = r*float(SR)/(2.*PI);
+
+// Convert Hertz to normalized frequency.
+hz2norm(f) = f/float(SR);
+
+// Convert normalized frequency to Hertz.
+norm2hz(w) = w*float(SR);
+
+// Convert linear amplitude to dezibel.
+amp2db(x) = 20.*log10(x);
+
+// Convert dezibel to linear amplitude.
+db2amp(x) = pow(10., x * .05);
+
+// ====================================================================
+// Basic signal transformations
+
+// Constrain signal `x' in interval [l,h].
 clip(x,l,h) = max(l, min(x, h));
+
+// Contrain signal `x' in interval [-b,b].
+clip2(x,b) = clip(x, neg(b), b);
+
+// Wrap signal `x' in interval [l,h] (cycled).
+// wrap(x,l,h) =
+
+// Fold signal `x' in interval [l,h] (mirrored).
+// fold(x,l,h)
+
+// Return fractional part of signal `x'.
+// TODO: more efficient version?
+//ffrac(x) = x - int(x);
+
+// Modulo operation that behaves correctly for negative inputs.
+mod(x,y) = float(y != 0.) * (x - y*floor(x/y));
+
+// ====================================================================
+// Table lookup
 
 // Table indices normalized to [0,1].
 table_time(n) = float(time)/float(n);
