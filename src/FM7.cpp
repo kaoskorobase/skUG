@@ -29,13 +29,14 @@ struct FM7Op
 {
     int32 m_phase;
     float m_freq;
+    float m_phasemod;
     float m_amp;
     float m_mem;
 };
 
 struct FM7 : public Unit
 {
-    static const int kNumOps = 6;
+    static const int kNumOps  = 6;
     static const int kNumOps2 = kNumOps * kNumOps;
 
     enum {
@@ -45,10 +46,11 @@ struct FM7 : public Unit
         kNumControls
     };
 
-    double m_cpstoinc, m_radtoinc;
-    int32 m_lomask;
-    FM7Op m_ops[kNumOps];
-    float m_mod[kNumOps2];
+    double m_cpstoinc;
+    double m_radtoinc;
+    int32  m_lomask;
+    FM7Op  m_ops[kNumOps];
+    float  m_mod[kNumOps2];
 };
 
 extern "C"
@@ -67,9 +69,11 @@ extern "C"
 
 #define FM7_DECLARE(i) \
 		int32 phase##i; \
-        float phasemod##i; \
+        float phasemodx##i; \
 		float freq##i; \
 		float freqinc##i; \
+        float phasemod##i; \
+        float phasemodinc##i; \
 		float amp##i; \
 		float ampinc##i; \
 		float mem##i; \
@@ -77,44 +81,50 @@ extern "C"
 
 #define FM7_IMPORT(ops, i) \
 		{ \
-		FM7Op *op = (ops) + i; \
-		float next; \
-		phase##i = op->m_phase; \
-		freq##i = op->m_freq; \
-		next = ZIN0(FM7_FREQ_INDEX(i)); \
-		freqinc##i = CALCSLOPE(next, freq##i); \
-		amp##i = op->m_amp; \
-		next = ZIN0(FM7_AMP_INDEX(i)); \
-		ampinc##i = CALCSLOPE(next, amp##i); \
-		mem##i = op->m_mem; \
-		zout##i = ZOUT(i); \
+		FM7Op *op           = (ops) + i; \
+		phase##i            = op->m_phase; \
+		freq##i             = op->m_freq; \
+		float nextfreq      = ZIN0(FM7_FREQ_INDEX(i)); \
+		freqinc##i          = CALCSLOPE(nextfreq, freq##i); \
+        phasemod##i         = op->m_phasemod; \
+		float nextphasemod  = ZIN0(FM7_PHASE_INDEX(i)); \
+        phasemodinc##i      = CALCSLOPE(nextphasemod, phasemod##i); \
+		amp##i              = op->m_amp; \
+		float nextamp       = ZIN0(FM7_AMP_INDEX(i)); \
+		ampinc##i           = CALCSLOPE(nextamp, amp##i); \
+		mem##i              = op->m_mem; \
+		zout##i             = ZOUT(i); \
 		}
 
 #define FM7_EXPORT(ops, i) \
 		{ \
-		FM7Op *op = (ops) + i; \
-		op->m_phase = phase##i; \
-		op->m_freq = freq##i; \
-		op->m_amp = amp##i; \
-		op->m_mem = mem##i; \
+		FM7Op *op           = (ops) + i; \
+		op->m_phase         = phase##i; \
+		op->m_freq          = freq##i; \
+        op->m_phasemod      = phasemod##i; \
+		op->m_amp           = amp##i; \
+		op->m_mem           = mem##i; \
 		}
 
 #define FM7_PHASE_MOD(mod, j) \
 		((mod)[j] * mem##j)
 
 #define FM7_MOD_NEXT(i, mod) \
-		phasemod##i = FM7_PHASE_MOD(mod, 0) + FM7_PHASE_MOD(mod, 1) + \
-		              FM7_PHASE_MOD(mod, 2) + FM7_PHASE_MOD(mod, 3) + \
-		              FM7_PHASE_MOD(mod, 4) + FM7_PHASE_MOD(mod, 5)
+		phasemodx##i = phasemod##i + \
+		               FM7_PHASE_MOD(mod, 0) + FM7_PHASE_MOD(mod, 1) + \
+		               FM7_PHASE_MOD(mod, 2) + FM7_PHASE_MOD(mod, 3) + \
+		               FM7_PHASE_MOD(mod, 4) + FM7_PHASE_MOD(mod, 5)
 
 #define FM7_OP_NEXT(i, t0, t1, tmask, radtoinc, cpstoinc) \
-     mem##i = \
-         amp##i * \
-         lookupi1((t0), (t1), phase##i + (int32)(phasemod##i * (radtoinc)), (tmask)); \
+     mem##i = amp##i * \
+              lookupi1((t0), (t1), \
+                       phase##i + (int32)(phasemodx##i * (radtoinc)), \
+                       (tmask)); \
      ZXP(zout##i) = mem##i; \
-     amp##i += ampinc##i; \
-     phase##i += (int32)(freq##i * (cpstoinc)); \
-     freq##i += freqinc##i;
+     phase##i    += (int32)(freq##i * (cpstoinc)); \
+     freq##i     += freqinc##i; \
+     phasemod##i += phasemodinc##i; \
+     amp##i      += ampinc##i;
 
 void FM7_next_kk(FM7 *unit, int inNumSamples)
 {
@@ -261,10 +271,11 @@ void FM7_Ctor(FM7 *unit)
         SETCALC(FM7_next_kk);
     }
 
-    int tableSize2 = ft->mSineSize;
-    unit->m_cpstoinc = tableSize2 * SAMPLEDUR * 65536.;
-    unit->m_radtoinc = tableSize2 * (rtwopi * 65536.);
-    unit->m_lomask = (tableSize2 - 1) << 3;
+    // Initialize fixed point table lookup arithmetic
+    int tableSize = ft->mSineSize;
+    unit->m_cpstoinc = tableSize * SAMPLEDUR * 65536.;
+    unit->m_radtoinc = tableSize * rtwopi    * 65536.;
+    unit->m_lomask   = (tableSize - 1) << 3;
 
     FM7Op *ops = unit->m_ops;
     float *mod = unit->m_mod;
@@ -272,11 +283,13 @@ void FM7_Ctor(FM7 *unit)
     for (int i=0, mi=FM7_MOD_BASE; i < FM7::kNumOps; i++) {
         FM7Op *op = ops + i;
 
-        op->m_freq = ZIN0(FM7_FREQ_INDEX(i));
-        op->m_phase = (int32)(ZIN0(FM7_PHASE_INDEX(i)) * unit->m_radtoinc);
-        op->m_amp = ZIN0(FM7_AMP_INDEX(i));
-        op->m_mem = 0.f;
-		
+        op->m_phase     = 0;
+        // op->m_phase     = (int32)(ZIN0(FM7_PHASE_INDEX(i)) * unit->m_radtoinc);
+        op->m_freq      = ZIN0(FM7_FREQ_INDEX(i));
+        op->m_phasemod  = ZIN0(FM7_PHASE_INDEX(i));
+        op->m_amp       = ZIN0(FM7_AMP_INDEX(i));
+        op->m_mem       = 0.f;
+
         for (int j=0; j < FM7::kNumOps; j++, mi++) {
             *mod++ = ZIN0(mi);
         }
