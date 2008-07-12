@@ -175,10 +175,12 @@ def make_faust_plugin(env, dir, src):
     cpp = env.Faust(src)
     lib = env.SharedLibrary(make_faust_plugin_target(env, dir, cpp), cpp)
     name = os.path.basename(os.path.splitext(src)[0])
-    svg = env.FaustSVG(os.path.join(dir, name), src)
-    xml = env.FaustXML(os.path.join(dir, name), src)
-    sc = env.FaustSC(xml)
-    return env.Alias('plugins', [lib, sc, svg, xml])
+    svg = env.FaustSVG(os.path.join(dir, 'svg', name), src)
+    xml = env.FaustXML(os.path.join(dir, 'xml', name), src)
+    sc = env.FaustSC('skUG/Faust/Faust', xml)
+    mod = env['FAUST2SC_HASKELL_MODULE']
+    hs = env.FaustHaskell(os.path.join('haskell', '/'.join(mod.split('.'))), xml)
+    return env.Alias('faust-plugins', [hs, lib, sc, svg, xml])
 
 # Initialize plugin environment
 pluginEnv = env.Copy(
