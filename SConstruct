@@ -67,6 +67,9 @@ opts.AddOptions(
                'Build with benchmarking instrumentation', 0),
     BoolOption('DEBUG',
                'Build with debugging information', 0),
+    ('OPTFLAGS',
+               'Optimization flags',
+               ' '.join(['-O2', '-ffast-math', '-funroll-loops', '-fstrength-reduce', '-ftree-vectorize'])),
     PathOption('SC_SOURCE_DIR',
                'SuperCollider source directory', '../supercollider/'),
     BoolOption('SSE',
@@ -114,10 +117,9 @@ env.Append(
 if env['BENCHMARK']:
     env.Append(CPPDEFINES = ['VEP_BENCHMARK'])
 
-# Optimizer flags
+# Optimization flags
 # FIXME: Omitting -O2 crashes Faust plugins during initialization.
-env.Append(
-    CCFLAGS = ['-O2', '-ffast-math', '-funroll-loops', '-fstrength-reduce', '-ftree-vectorize'])
+env.Append(CCFLAGS = ['$OPTFLAGS'])
 
 # Debugging flags
 if env['DEBUG']:
