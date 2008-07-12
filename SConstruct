@@ -182,6 +182,12 @@ def make_faust_plugin(env, dir, src):
     hs = env.FaustHaskell(os.path.join('haskell', '/'.join(mod.split('.'))), xml)
     return env.Alias('faust-plugins', [hs, lib, sc, svg, xml])
 
+def make_faust_benchmark(env, src, prefix=''):
+    target = os.path.splitext(str(src))[0]
+    cpp = env.Faust(target + prefix + '.cpp', src)
+    exe = env.Program(target, cpp)
+    return env.Alias('faust-benchmarks', exe)
+
 # Initialize plugin environment
 pluginEnv = env.Copy(
 	SHLIBPREFIX = '',
@@ -206,8 +212,21 @@ if not env['PLATFORM'] in ['windows']:
 # FM7
 make_plugin(pluginEnv, 'skUG/FM7', 'FM7', ['src/FM7.cpp'])
 
-# Faust
-FAUST_SOURCE = Split('''
+# =====================================================================
+# Faust plugins
+
+# Faust environment
+faustEnv = pluginEnv.Copy(
+    FAUST_ARCHITECTURE = 'supercollider',
+    FAUST2SC_HASKELL_MODULE = 'Sound.SC3.UGen.SKUG.Faust'
+)
+# Faust benchmark environment
+faustBenchEnv = pluginEnv.Copy(
+    FAUST_ARCHITECTURE = 'bench',
+    PROGSUFFIX = '.bench'
+)
+
+FAUST_PLUGIN_SOURCE = Split('''
 src/Faust/Blitz.dsp
 src/Faust/Blitzaw.dsp
 src/Faust/Blitzquare.dsp
@@ -229,8 +248,19 @@ src/Faust/ButterLP4C.dsp
 src/Faust/ButterLP6C.dsp
 ''')
 
-for src in FAUST_SOURCE:
-    make_faust_plugin(pluginEnv, 'skUG/Faust', src)
+FAUST_BENCH_SOURCE = Split('''
+src/Faust/benchmarks/mod.dsp
+''')
+
+for src in FAUST_PLUGIN_SOURCE:
+    make_faust_plugin(faustEnv, 'skUG/Faust', src)
+    make_faust_benchmark(faustBenchEnv, src, '_bench')
+
+for src in FAUST_BENCH_SOURCE:
+    make_faust_benchmark(faustBenchEnv, src)
+
+env.Alias('plugins', 'faust-plugins')
+env.Alias('benchmarks', 'faust-benchmarks')
 
 Default('plugins')
 

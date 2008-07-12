@@ -1,0 +1,20 @@
+# Faust benchmarks
+
+## Improvements of generated code
+
+### select2
+
+It might be better in terms of cache behavior if `select2` where implemented
+using an inline control structure instead of a table lookup.
+
+Benchmarking reveals that this
+
+    S0[1] = 0.00000f;
+    ...
+    S0[0] = (fTemp1 - ((fTemp0 * floorf((fTemp1 / fTemp0))) * float(((0.000000f > fTemp1) | (fTemp1 >= fTemp0)))));
+    output0[i] = S0[int((fTemp0 == 0.000000f))];
+
+is slower than this (hand edited)
+
+    float S0_0 = (fTemp1 - ((fTemp0 * floorf((fTemp1 / fTemp0))) * float(((0.000000f > fTemp1) | (fTemp1 >= fTemp0)))));
+    output0[i] = int((fTemp0 == 0.000000f)) == 0 ? S0_0 : 0.f;
