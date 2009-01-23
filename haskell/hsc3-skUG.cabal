@@ -1,8 +1,8 @@
 Name:                   hsc3-skUG
 Version:                0.1.0
-Category:		Sound
+Category:       	    Sound
 License:                GPL
-License-File:		COPYING
+License-File:           COPYING
 Copyright:              Stefan Kersten, 2005-2008
 Author:                 Stefan Kersten
 Maintainer:             Stefan Kersten <sk@k-hornz.de>
@@ -14,7 +14,7 @@ Description:            Haskell bindings for skUG
                         skUG is a collection of unit generator plugins for
                         SuperCollider3.
 Tested-With:            GHC
-Build-Type:		Simple
+Build-Type:             Simple
 Build-Depends:          base, hsc3 >= 0.4
 Exposed-Modules:        
                         Sound.SC3.UGen.SKUG.Faust
