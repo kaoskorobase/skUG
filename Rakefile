@@ -111,7 +111,13 @@ task [:dist, :bin] do
   `rm -r #{dist_dir}`
 end
 
-task :dist => ["dist:src", "dist:bin"]
+task :dist => [:doc, "dist:src", "dist:bin"]
+
+task :upload => [:doc, :dist] do
+  ["#{SRC_DIST}.tar.gz", "#{BIN_DIST}.tar.gz", "Changes.html"].each { |file|
+    puts `scp #{file} florenz:web7/sites/space/pub/skUG`
+  }
+end
 
 # =====================================================================
 # Cleanup
