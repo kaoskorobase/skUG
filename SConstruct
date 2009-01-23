@@ -132,7 +132,7 @@ if env['CPU'] == 'ppc':
     env.Append(CCFLAGS = '-fsigned-char')
 
 if env['ALTIVEC'] and (env['CPU'] == 'ppc'):
-    altiEnv = env.Copy()
+    altiEnv = env.Clone()
     altiEnv.Append(CCFLAGS = ['-maltivec'])
     altiConf = Configure(altiEnv)
     has_vec = altiConf.CheckCHeader('altivec.h')
@@ -140,7 +140,7 @@ if env['ALTIVEC'] and (env['CPU'] == 'ppc'):
     if has_vec:
         env.Append(CCFLAGS = ['-maltivec', '-mabi=altivec'])
 elif env['SSE'] and re.match("^i?[0-9x]86", env['CPU']):
-    sseEnv = env.Copy()
+    sseEnv = env.Clone()
     sseEnv.Append(CCFLAGS = ['-msse2'])
     sseConf = Configure(sseEnv)
     has_vec = sseConf.CheckCHeader('xmmintrin.h')
@@ -191,7 +191,7 @@ def make_faust_benchmark(env, src, prefix=''):
     return env.Alias('faust-benchmarks', exe)
 
 # Initialize plugin environment
-pluginEnv = env.Copy(
+pluginEnv = env.Clone(
 	SHLIBPREFIX = '',
 	SHLIBSUFFIX = env['PLUGIN_EXT'],
 	FAUST_ARCHITECTURE = 'supercollider')
@@ -201,7 +201,7 @@ if env['PLATFORM'] == 'darwin':
 
 # VEP
 if not env['PLATFORM'] in ['windows']:
-    vepEnv = pluginEnv.Copy()
+    vepEnv = pluginEnv.Clone()
     vepEnv.ParseConfig('pkg-config --cflags --libs fftw3f')
     make_plugin(
         vepEnv, 'skUG/VEP', 'VEPConvolution',
@@ -218,12 +218,12 @@ make_plugin(pluginEnv, 'skUG/FM7', 'FM7', ['src/FM7.cpp'])
 # Faust plugins
 
 # Faust environment
-faustEnv = pluginEnv.Copy(
+faustEnv = pluginEnv.Clone(
     FAUST_ARCHITECTURE = 'supercollider',
     FAUST2SC_HASKELL_MODULE = 'Sound.SC3.UGen.SKUG.Faust'
 )
 # Faust benchmark environment
-faustBenchEnv = pluginEnv.Copy(
+faustBenchEnv = pluginEnv.Clone(
     FAUST_ARCHITECTURE = 'bench',
     PROGSUFFIX = '.bench'
 )
