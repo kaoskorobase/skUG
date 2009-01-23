@@ -17,6 +17,7 @@ Tested-With:            GHC
 Build-Type:		Simple
 Build-Depends:          base, hsc3 >= 0.4
 Exposed-Modules:        
-			Sound.SC3.UGen.SKUG.Faust
-			Sound.SC3.UGen.SKUG.FM7
+                        Sound.SC3.UGen.SKUG.Faust
+                        Sound.SC3.UGen.SKUG.FM7
+                        Sound.SC3.UGen.SKUG.Trigger
 Ghc-Options:            -Wall

@@ -214,6 +214,9 @@ if not env['PLATFORM'] in ['windows']:
 # FM7
 make_plugin(pluginEnv, 'skUG/FM7', 'FM7', ['src/FM7.cpp'])
 
+# Trigger
+make_plugin(pluginEnv, 'skUG/Trigger', 'Trigger', ['src/Trigger.cpp'])
+
 # =====================================================================
 # Faust plugins
 
