@@ -1,7 +1,7 @@
 # -*- python -*- =======================================================
 # FILE:         SConstruct
-# CONTENTS:     scons build script for skug
-# AUTHOR:       steve AT k-hornz DOT de
+# CONTENTS:     scons build script for skUG
+# AUTHOR:       sk AT k-hornz DOT de
 # ======================================================================
 
 import glob
