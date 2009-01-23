@@ -101,7 +101,7 @@ task [:dist, :src] do
 end
 
 task [:dist, :bin] do
-  dist_files = ["skUG/FM7"]
+  dist_files = ["skUG"]
   dist_dir = BIN_DIST
   `mkdir -p #{dist_dir}`
   dist_files.each { |f|
