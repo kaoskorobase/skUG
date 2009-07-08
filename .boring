@@ -1,4 +1,10 @@
-build
+^build
 ^haskell/dist.*
-.*\.pbuser$
+^config\.log$
+^scache.conf$
+^.sconf_temp.*
+^.sconsign\.dblite$
+
+.*\.pbxuser$
 .*\.mode1$
+.*\.DS_Store$
