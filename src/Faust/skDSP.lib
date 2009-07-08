@@ -23,32 +23,77 @@ hz2norm(f) = f/float(SR);
 norm2hz(w) = w*float(SR);
 
 // Convert linear amplitude to dezibel.
-amp2db(x) = 20.*log10(x);
+amp2db(x) = 20.0*log10(x);
 
 // Convert dezibel to linear amplitude.
-db2amp(x) = pow(10., x * .05);
+db2amp(x) = pow(10.0, 0.05*x);
 
 // ====================================================================
 // Basic signal transformations
+// Many of these are from SuperCollider.
 
-// Constrain signal `x' in interval [l,h].
-clip(x,l,h) = max(l, min(x, h));
+// Return fractional part of signal x.
+//frac(x) = x - int(x);
 
-// Contrain signal `x' in interval [-b,b].
-clip2(x,b) = clip(x, neg(b), b);
+// Round x to multiples of a.
+round(x,a) = a * floor(x/a+0.5);
 
-// Wrap signal `x' in interval [l,h] (cycled).
-// wrap(x,l,h) =
+// Round x to multiples of a (may be zero).
+round0(x,a) = if (a == 0.0, x, round(x,a));
 
-// Fold signal `x' in interval [l,h] (mirrored).
-// fold(x,l,h)
+// Round x upwards to multiples of a.
+roundup(x,a) = a * ceil(x/a);
 
-// Return fractional part of signal `x'.
-// TODO: more efficient version?
-//ffrac(x) = x - int(x);
+// Round x upwards to multiples of a (may be zero).
+roundup0(x,a) = if (a == 0.0, x, round_up(x,a));
+
+// Truncate x to multiples of a.
+trunc(x,a) = a * floor(x/a);
+
+// Truncate x to multiples of a (may be zero).
+trunc0(x,a) = if (a == 0.0, x, trunc(x,a));
+
+// Constrain signal x in interval [l,h].
+clip(l,h,x) = max(l,min(x,h));
+
+// Constrain signal x in interval [-b,b].
+clip2(b) = clip(neg(b),b);
 
 // Modulo operation that behaves correctly for negative inputs.
-mod(x,y) = float(y != 0.) * (x - y*floor(x/y));
+mod(x,y) = wrap(0.0,y,x);
+//mod(x,r) = if (r == 0.0, 0.0, y)
+//    with {
+//      p = (x < 0.0) | (r <= x);
+//      y = x - float(p)*trunc(x, r);
+//    };
+
+// Wrap signal `x' in interval [l,h[.
+wrap(l,h,x) = if (r == 0.0, l, y)
+    with {
+        r = h - l;
+    	p = (x < l) | (h <= x);
+        y = x - float(p)*trunc(x-l, r);
+    };
+
+// Wrap signal x in interval [-b,b[.
+wrap2(b) = wrap(neg(b),b);
+
+// Fold signal x in interval [l,h[.
+fold(l,h,x) = if (r == 0.0, l, if (p, y, x))
+    with {
+        r = h - l;
+    	p = (x < l) | (h <= x);
+        c = x - l - trunc(x-l, 2.0*r);
+        y = l + if (c >= r, 2.0*r-c, c);
+    };
+
+// Fold signal x in interval [-b,b[.
+fold2(b,x) = fold(neg(b),b);
+
+// ====================================================================
+// Control structures
+
+if(p,a,b) = select2(p,b,a);
 
 // ====================================================================
 // Table lookup
