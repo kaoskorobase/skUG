@@ -5,7 +5,8 @@ declare license   "GPL";
 declare copyright "Copyright (c) Stefan Kersten 2008";
 
 import("math.lib");
-import("music.lib");
+import("music.lib"); // frac
+import("skDSP.lib");
 
 // this should go into math.lib (std::numeric_limits<float>::epsilon())
 EPSILON = 0.00000011920928955078125;
@@ -39,3 +40,78 @@ blit_saw(F,N) = +(output - C2) ~ *(0.995) // leaky integration of blit
                       sin(m * phase) : /(denom * SR / F),
                       m * C2 ) ;
   };
+
+// Wavetable oscillator with phase modulation input.
+//
+// Table lookup with linear interpolation.
+//
+//     fun    Wavetable function, input signal is [0..N-1]/N
+//     tbits  Number of bits for table
+//     fbits  Number of bits for fractional index
+//     frq    Oscillator frequency in Hz
+//     phs    Phase modulation in normalized frequency f/fs
+//
+// PRE:
+//     table size: (tbits + fbits) < 32
+//
+k_osc(fun,tbits,fbits,frq,phs) = y1 + xf * (y2 - y1)
+    with {
+        // Wavetable size
+        nt          = 1<<tbits;
+        // Fractional part size
+        nf          = 1<<fbits;
+        // Index size
+        ni          = (1<<tbits)<<fbits;
+        // Make table index
+        index(x)    = int(x*float(ni));
+        // Compute fixed point phase and add fixed point phase modulation
+        phase       = index(hz2norm(frq)) : + ~ _ : +(index(phs/(2.*PI)));
+        // Wavetable contents
+        wave        = float(time)/float(nt) : fun;
+        // Integer phase (table index)
+        xi          = (phase >> fbits) & (nt-1);
+        // Fractional phase
+        xf          = float(phase & (nf-1)) / float(nf);
+        // Linear interpolation points
+		y1          = rdtable(nt  , wave, xi  );
+		y2          = rdtable(nt+1, wave, xi+1);
+    };
+
+// Sine oscillator with phase modulation input.
+//
+//     frq  Oscillator frequency in Hz
+//     phs  Phase modulation in normalized frequency f/fs
+//
+k_sin_osc = k_osc(*(2.*PI) : sin);
+
+// Feedback FM sine oscillator.
+//
+//    frq   Oscillator frequency in Hz
+//    fb    Amount of feedback phase modulation in normalized frequency f/fs
+//
+k_sin_osc_fb(tbits,fbits,frq,fb) = k_sin_osc(tbits,fbits,frq) ~ *(fb);
+
+// Phasor with normalized frequency signal argument.
+// Produces output in [0,1[
+k_phasor = (+ : frac) ~ _;
+
+// Sine oscillator using the sinf library function.
+//
+// Performance seems to be only slightly worse than the table lookup version,
+// but with greater variations.
+//
+//     frq    Oscillator frequency in Hz
+//     phs    Phase modulation in normalized frequency f/fs
+//
+k_sin_osc_2(frq,phs) = sin(2.*PI*phase)
+    with {
+        phase = hz2norm(frq) : (+ : frac) ~ _ : +(phs/(2.*PI));
+    };
+
+// Feedback FM sine oscillator using the sinf library function.
+//
+//    frq   Oscillator frequency in Hz
+//    fb    Amount of feedback phase modulation in normalized frequency f/fs
+//
+k_sin_osc_fb_2(frq,fb) = k_sin_osc_2(frq) ~ *(fb);
+
