@@ -1,11 +1,11 @@
-declare name      "Filter library";
+declare name      "Butterworth filter library";
 declare version   "1.0";
 declare author    "Stefan Kersten";
 declare license   "GPL";
 declare copyright "Copyright (c) Stefan Kersten 2008";
 
 import("filter.lib");
-import("music.lib");
+/*import("music.lib");*/
 import("skDSP.lib");
 
 // Butterworth polynomial coefficients.
@@ -16,15 +16,15 @@ Beta61 = 0.5176380902050417009974125903681851923465728759766;
 Beta62 = 1.4142135623730949234300169337075203657150268554688;
 Beta63 = 1.9318516525781364023828245990443974733352661132812;
 
-QPeak      = db2linear(32.);
+QPeak      = db2linear(48.);
 QPeakScale = 1./QPeak;
 
-QRange21 = 1.; //db2linear(0);
-QRange41 = 0.01; //db2linear(-3); //0.01; -40
-QRange42 = 1.; //db2linear(0);
-QRange61 = 0.01; //db2linear(-6); //0.01; -40
-QRange62 = 0.02; //db2linear(-3); //0.02; -34
-QRange63 = 1.; //db2linear(0);
+QRange21   = db2linear(0);
+QRange41   = db2linear(-40);
+QRange42   = db2linear(0);
+QRange61   = db2linear(-40);
+QRange62   = db2linear(-34);
+QRange63   = db2linear(0);
 
 // static const double kGainCorrBW[] = { 0.0, 0.79432823472428, 0.63095734448019, 0.50118723362727 };
 
@@ -35,26 +35,29 @@ QRange63 = 1.; //db2linear(0);
 // Table size for lookup tables; should be plenty.
 TableSize = 1<<16;
 
-// Gain correction for a given filter order and q.
-butter_gain_corr(order, q) =
-	rdtable_l(TableSize, table_time(TableSize) : f, table_index_f(TableSize, q))
-	with {
-		f(x) = pow(x, 0.4);
-	};
+// Gain correction for a given q.
+butter_gain_corr_f(q) = pow(q, 0.35);
+butter_gain_corr_t(q) = rdtable_l(TableSize, butter_gain_corr_f, q);
+butter_gain_corr      = butter_gain_corr_t;
 
 // Convert `resonance' in [0..1] to `q' in [0..1].
-butter_r2q(r) =
-	rdtable_l(TableSize, table_time(TableSize) : f, table_index_f(TableSize, r)) * QPeakScale
-	with {
-		f(x) = pow(QPeak, 1.-x);
-	};
+butter_r2q_f(r) = pow(QPeak, 1.-r) * QPeakScale;
+butter_r2q_t(r) = rdtable_l(TableSize, butter_r2q_f, r);
+butter_r2q      = butter_r2q_t;
 
 // Compute `q' according to scaling coefficient `a'.
 butter_realq(q, a) = 1. - a * (1. - q);
 
 // Convert external parameters `f' (frequency in Hertz) and `r' (resonance)
 // to internal filter parameters.
-butter_params(f, r) = clip(hz2rad(f), 0.0, 0.98*PI), butter_r2q(r);
+butter_params(f, r) = hz2rad(f) : clip(0.0, 0.99*PI), butter_r2q(r);
+
+// Butterworth controls.
+butter_controls = f, r
+	with {
+		f = vslider("freq", 0, 0, 20000, 0);
+		r = vslider("res", 0, 0, 1, 0);
+	};
 
 // Compute coefficients for butterworth lowpass second order section (DF1).
 butter_coefs_lp(beta, w, q, gain) = b0, b1, b2, a1, a2
@@ -83,8 +86,8 @@ butter_coefs_hp(beta, w, q, gain) = b0, b1, b2, a1, a2
 // Second order transfer function (DF1).
 df2(b0,b1,b2,a1,a2) = conv3(b0,b1,b2) : (+) ~ conv2(a1,a2)
 	with {
-	  conv3(k0,k1,k2,x)     = k0*x + k1*x' + k2*x'';
-	  conv2(k0,k1,x)        = k0*x + k1*x';
+	  conv3(k0,k1,k2,x) = k0*x + k1*x' + k2*x'';
+	  conv2(k0,k1,x)    = k0*x + k1*x';
 	};
 
 // Two cascaded second order transfer functions.
@@ -101,48 +104,41 @@ df6(b10,b11,b12,a11,a12,b20,b21,b22,a21,a22,b30,b31,b32,a31,a32) =
 // 2-pole lowpass.
 butter_lp_2 = butter_params : coefs : df2
     with {
-        coefs(w,q) = butter_coefs_lp(Beta21, w, butter_realq(q, QRange21), butter_gain_corr(2, q));
+        coefs(w,q) = butter_coefs_lp(Beta21, w, butter_realq(q, QRange21), butter_gain_corr(q));
     };
 
 // 2-pole highpass.
 butter_hp_2 = butter_params : coefs : df2
     with {
-        coefs(w,q) = butter_coefs_hp(Beta21, w, butter_realq(q, QRange21), butter_gain_corr(2, q));
+        coefs(w,q) = butter_coefs_hp(Beta21, w, butter_realq(q, QRange21), butter_gain_corr(q));
     };
 
 // 4-pole lowpass.
 butter_lp_4 = butter_params : coefs : df4
     with {
-        coefs(w,q) = butter_coefs_lp(Beta41, w, butter_realq(q, QRange41), butter_gain_corr(4, q)),
-                     butter_coefs_lp(Beta42, w, butter_realq(q, QRange42), butter_gain_corr(4, q));
+        coefs(w,q) = butter_coefs_lp(Beta41, w, butter_realq(q, QRange41), butter_gain_corr(q)),
+                     butter_coefs_lp(Beta42, w, butter_realq(q, QRange42), 1.                 );
     };
 
 // 4-pole highpass.
 butter_hp_4 = butter_params : coefs : df4
     with {
-        coefs(w,q) = butter_coefs_hp(Beta41, w, butter_realq(q, QRange41), butter_gain_corr(4, q)),
-                     butter_coefs_hp(Beta42, w, butter_realq(q, QRange42), butter_gain_corr(4, q));
+        coefs(w,q) = butter_coefs_hp(Beta41, w, butter_realq(q, QRange41), butter_gain_corr(q)),
+                     butter_coefs_hp(Beta42, w, butter_realq(q, QRange42), 1.                 );
     };
 
 // 6-pole lowpass.
 butter_lp_6 = butter_params : coefs : df6
     with {
-        coefs(w,q) = butter_coefs_lp(Beta61, w, butter_realq(q, QRange61), butter_gain_corr(6, q)),
-                     butter_coefs_lp(Beta62, w, butter_realq(q, QRange62), butter_gain_corr(6, q)),
-                     butter_coefs_lp(Beta63, w, butter_realq(q, QRange63), butter_gain_corr(6, q));
+        coefs(w,q) = butter_coefs_lp(Beta61, w, butter_realq(q, QRange61), butter_gain_corr(q)),
+                     butter_coefs_lp(Beta62, w, butter_realq(q, QRange62), 1.                 ),
+                     butter_coefs_lp(Beta63, w, butter_realq(q, QRange63), 1.                 );
     };
 
 // 6-pole highpass.
 butter_hp_6 = butter_params : coefs : df6
     with {
-        coefs(w,q) = butter_coefs_hp(Beta61, w, butter_realq(q, QRange61), butter_gain_corr(6, q)),
-                     butter_coefs_hp(Beta62, w, butter_realq(q, QRange62), butter_gain_corr(6, q)),
-                     butter_coefs_hp(Beta63, w, butter_realq(q, QRange63), butter_gain_corr(6, q));
+        coefs(w,q) = butter_coefs_hp(Beta61, w, butter_realq(q, QRange61), butter_gain_corr(q)),
+                     butter_coefs_hp(Beta62, w, butter_realq(q, QRange62), 1.                 ),
+                     butter_coefs_hp(Beta63, w, butter_realq(q, QRange63), 1.                 );
     };
-
-// Butterworth controls.
-butter_controls = f, r
-	with {
-		f = vslider("freq", 0, 0, 20000, 0);
-		r = vslider("res", 0, 0, 1, 0);
-	};
