@@ -1,0 +1,6 @@
+# Compiling skUG with XCode
+
+## Preparation
+
+Set `SC_SOURCE_DIR` in Preferences -> Source Trees to the path of the
+SuperCollider sources.
