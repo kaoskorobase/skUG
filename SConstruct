@@ -193,8 +193,7 @@ def make_faust_benchmark(env, src, prefix=''):
 # Initialize plugin environment
 pluginEnv = env.Clone(
 	SHLIBPREFIX = '',
-	SHLIBSUFFIX = env['PLUGIN_EXT'],
-	FAUST_ARCHITECTURE = 'supercollider')
+	SHLIBSUFFIX = env['PLUGIN_EXT'])
 if env['PLATFORM'] == 'darwin':
     # build a MACH-O bundle
     pluginEnv['SHLINKFLAGS'] = '$LINKFLAGS -bundle -flat_namespace -undefined suppress'
@@ -225,6 +224,11 @@ faustEnv = pluginEnv.Clone(
     FAUST_ARCHITECTURE = 'supercollider',
     FAUST2SC_HASKELL_MODULE = 'Sound.SC3.UGen.SKUG.Faust'
 )
+if faustEnv['PLATFORM'] == 'darwin':
+    faustEnv.Append(
+        CCFLAGS = '-fvisibility=hidden'
+        )
+
 # Faust benchmark environment
 faustBenchEnv = pluginEnv.Clone(
     FAUST_ARCHITECTURE = 'bench',
