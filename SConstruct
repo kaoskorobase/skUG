@@ -271,6 +271,10 @@ for src in FAUST_BENCH_SOURCE:
 env.Alias('plugins', 'faust-plugins')
 env.Alias('benchmarks', 'faust-benchmarks')
 
+env.Alias('clean-faust',
+          env.Command('clean-svg', [],
+                      env.Action("find -d . -name '*.dsp-svg' -a -type d -exec rm -r '{}' ';'")))
+
 Default('plugins')
 
 # ======================================================================
