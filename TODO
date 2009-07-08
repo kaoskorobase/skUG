@@ -1,0 +1,47 @@
+SPP:
+
+- plug into general FFT/IFFT framework
+- feature extraction (RT and NRT)
+  - peak detection and following
+  - peak classification
+  - spectral envelope estimation
+  - transient detection
+  - f0-estimation
+  - voiced/unvoiced classification
+- signal transformation (RT)
+  - peak (pitch) shifting
+  - spectral envelope preservation
+- signal transformation (NRT)
+  - time stretching
+  - transient preservation
+
+feature extraction for NRT transformations could be done in a standalone
+haskell program -> how to use information in scsynth (SDIF)?
+
+max-frame-size
+
+frame:
+num-peaks
+peak0
+peak1
+...
+onset?
+offset?
+f0
+voiced-unvoiced
+
+VEP:
+
+an ordered list of things to be done:
+
+x store each IR partition in the corresponding Convolver
+x cleanups: use response module in convolver, better data hiding for response module, [possibly more]
+* distribute Convolver(s) to OS threads
+* use non-hc real transforms to exploit SIMD parallelism
+* implement crossfade
+
+notes:
+
+- ringbuffer implementation might be bogus: the delay of the NRT partitions seems to depend on the fifo size
+
+-- EOF
