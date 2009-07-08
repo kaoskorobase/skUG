@@ -5,6 +5,8 @@
 ^.sconf_temp.*
 ^.sconsign\.dblite$
 
-.*\.pbxuser$
-.*\.mode1$
 .*\.DS_Store$
+.*\.mode1$
+.*\.pbxuser$
+.*\.pyc$
+.*\.scx$
