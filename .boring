@@ -1,0 +1,4 @@
+build
+^haskell/dist.*
+.*\.pbuser$
+.*\.mode1$
