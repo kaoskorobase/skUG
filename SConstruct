@@ -216,6 +216,9 @@ make_plugin(pluginEnv, 'skUG/FM7', 'FM7', ['src/FM7.cpp'])
 # Trigger
 make_plugin(pluginEnv, 'skUG/Trigger', 'Trigger', ['src/Trigger.cpp'])
 
+# FIS
+make_plugin(pluginEnv, 'skUG/INLF', 'INLF', ['src/INLF.cpp'])
+
 # =====================================================================
 # Faust plugins
 
