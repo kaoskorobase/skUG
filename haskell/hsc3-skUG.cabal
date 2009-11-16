@@ -20,4 +20,5 @@ Exposed-Modules:
                         Sound.SC3.UGen.SKUG.Faust
                         Sound.SC3.UGen.SKUG.FM7
                         Sound.SC3.UGen.SKUG.Trigger
+                        Sound.SC3.UGen.SKUG.VAD
 Ghc-Options:            -Wall

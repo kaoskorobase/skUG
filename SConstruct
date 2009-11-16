@@ -131,6 +131,9 @@ else:
 if env['CPU'] == 'ppc':
     env.Append(CCFLAGS = '-fsigned-char')
 
+if env['PLATFORM'] == 'darwin':
+    env.Append(CPPPATH = ['/opt/local/include'])
+
 if env['ALTIVEC'] and (env['CPU'] == 'ppc'):
     altiEnv = env.Clone()
     altiEnv.Append(CCFLAGS = ['-maltivec'])
@@ -218,6 +221,11 @@ make_plugin(pluginEnv, 'skUG/Trigger', 'Trigger', ['src/Trigger.cpp'])
 
 # FIS
 make_plugin(pluginEnv, 'skUG/INLF', 'INLF', ['src/INLF.cpp'])
+
+# VAD
+vadEnv = pluginEnv.Clone()
+vadEnv.ParseConfig('pkg-config --cflags --libs speexdsp')
+make_plugin(vadEnv, 'skUG/VAD', 'VAD', ['src/VAD.cpp'])
 
 # =====================================================================
 # Faust plugins
