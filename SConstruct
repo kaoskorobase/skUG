@@ -275,21 +275,21 @@ FAUST_BENCH_SOURCE = Split('''
 src/Faust/benchmarks/mod.dsp
 ''')
 
-for src in FAUST_PLUGIN_SOURCE:
-    make_faust_plugin(faustEnv, 'skUG/Faust', src)
-    make_faust_benchmark(faustBenchEnv, src, '_bench')
+# for src in FAUST_PLUGIN_SOURCE:
+#     make_faust_plugin(faustEnv, 'skUG/Faust', src)
+#     make_faust_benchmark(faustBenchEnv, src, '_bench')
+# 
+# for src in FAUST_BENCH_SOURCE:
+#     make_faust_benchmark(faustBenchEnv, src)
 
-for src in FAUST_BENCH_SOURCE:
-    make_faust_benchmark(faustBenchEnv, src)
-
-env.Alias('plugins', 'faust-plugins')
-env.Alias('benchmarks', 'faust-benchmarks')
+# env.Alias('plugins', 'faust-plugins')
+# env.Alias('benchmarks', 'faust-benchmarks')
 
 env.Alias('clean-faust',
           env.Command('clean-svg', [],
                       env.Action("find -d . -name '*.dsp-svg' -a -type d -exec rm -r '{}' ';'")))
 
-Default('plugins')
+# Default('plugins')
 
 # ======================================================================
 # Cleanup
