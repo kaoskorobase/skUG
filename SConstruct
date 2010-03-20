@@ -94,6 +94,7 @@ if env['CROSSCOMPILE'] != 'None':
     if env['CROSSCOMPILE'] == 'mingw':
         set_platform(env, 'windows', 'i386')
         env.Tool('crossmingw')
+        env.Append(CPPPATH = ['$SC_SOURCE_DIR/common/include/libsndfile'])
     else:
         print 'Unknown cross compilation environment: %s' % env['CROSSCOMPILE']
         Exit(1)
@@ -110,7 +111,7 @@ env.Append(
     CPPDEFINES = ['_REENTRANT', env['PLATFORM_SYMBOL']],
     CCFLAGS = ['-Wno-unknown-pragmas'],
     CXXFLAGS = ['-Wno-deprecated'],
-    CPPPATH = map(lambda f: os.path.join(env['SC_SOURCE_DIR'], 'headers', f),
+    CPPPATH = map(lambda f: os.path.join(env['SC_SOURCE_DIR'], 'common/headers', f),
                   ['common', 'plugin_interface', 'server']))
 
 # Benchmarking
@@ -174,7 +175,9 @@ def make_faust_plugin_target(env, dir, src):
     return make_plugin_target(env, dir, os.path.basename(os.path.splitext(str(src[0]))[0]))
 
 def make_plugin(env, dir, name, src):
-    return env.Alias('plugins', env.SharedLibrary(make_plugin_target(env, dir, name), src))
+    pEnv = env.Clone()
+    pEnv.SharedLibrary(make_plugin_target(env, dir, name), src)
+    return pEnv
 
 def make_faust_plugin(env, dir, src):
     cpp = env.Faust(src)
