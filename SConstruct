@@ -216,6 +216,11 @@ if not env['PLATFORM'] in ['windows']:
          'src/VEP/VEPPlugin.cpp'
          ])
 
+# BufferGen
+bufferGenEnv = make_plugin(pluginEnv, 'skUG/BufferGen', 'BufferGen', ['src/BufferGen.cpp'])
+if env['PLATFORM'] == 'windows':
+    bufferGenEnv.Append(LIBS = ['Ws2_32'])
+
 # FM7
 make_plugin(pluginEnv, 'skUG/FM7', 'FM7', ['src/FM7.cpp'])
 
@@ -224,11 +229,6 @@ make_plugin(pluginEnv, 'skUG/Trigger', 'Trigger', ['src/Trigger.cpp'])
 
 # FIS
 make_plugin(pluginEnv, 'skUG/INLF', 'INLF', ['src/INLF.cpp'])
-
-# VAD
-vadEnv = pluginEnv.Clone()
-vadEnv.ParseConfig('pkg-config --cflags --libs speexdsp')
-make_plugin(vadEnv, 'skUG/VAD', 'VAD', ['src/VAD.cpp'])
 
 # =====================================================================
 # Faust plugins
