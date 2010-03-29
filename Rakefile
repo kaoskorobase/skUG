@@ -97,7 +97,7 @@ end
 # Distribution
 
 task [:dist, :src] do
-  `darcs dist -d #{SRC_DIST}`
+	`git archive --format=tar --prefix="#{SRC_DIST}/" HEAD | gzip -c > "#{SRC_DIST}.tar.gz"`
 end
 
 task [:dist, :bin] do
