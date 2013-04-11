@@ -221,9 +221,6 @@ bufferGenEnv = make_plugin(pluginEnv, 'skUG/BufferGen', 'BufferGen', ['src/Buffe
 if env['PLATFORM'] == 'windows':
     bufferGenEnv.Append(LIBS = ['Ws2_32'])
 
-# FM7
-make_plugin(pluginEnv, 'skUG/FM7', 'FM7', ['src/FM7.cpp'])
-
 # Trigger
 make_plugin(pluginEnv, 'skUG/Trigger', 'Trigger', ['src/Trigger.cpp'])
 
